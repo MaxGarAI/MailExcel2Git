@@ -1,4 +1,4 @@
-"""Diagnostics and source collection; Excel import is not exposed yet."""
+"""Diagnostics, source previews and transactional master import."""
 
 import argparse
 import sys
@@ -19,7 +19,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         nargs="?",
         default="diagnose",
         choices=(
-            "diagnose", "capture-outlook", "preview-excel", "preview-seasons", "preview-photos"
+            "diagnose",
+            "capture-outlook",
+            "preview-excel",
+            "preview-seasons",
+            "preview-photos",
+            "import-excel",
+            "restore-backup",
+            "recover-lock",
         ),
     )
     parser.add_argument("--version", action="version", version=__version__)
@@ -27,6 +34,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--workbook", type=Path, help="Переопределить путь общей книги")
     parser.add_argument("--data-dir", type=Path, help="Переопределить рабочий каталог")
     parser.add_argument("--manifest", type=Path, help="Манифест полученных вложений")
+    parser.add_argument("--write-config", type=Path, help="Настройки записи TOML")
+    parser.add_argument("--journal", type=Path, help="Журнал транзакции для восстановления")
     args = parser.parse_args(argv)
     # The executable owns its logger. Disable the default diagnostic stderr sink.
     logger.remove()
@@ -36,6 +45,62 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("Требуется Python 3.12.", file=sys.stderr)
             return 2
         app = Application.create(args.config, workbook=args.workbook, data_dir=args.data_dir)
+        if args.command == "recover-lock":
+            from kuchenland_importer.infrastructure.stale_lock import release_stale_lock
+
+            if args.journal is None or app.settings.workbook is None:
+                parser.error("recover-lock требует --journal и путь общей книги")
+            try:
+                release_stale_lock(app.settings.workbook, args.journal)
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise ApplicationError(f"Восстановление блокировки отменено: {error}") from error
+            print("Блокировка завершившегося процесса снята.")
+            return 0
+        if args.command == "restore-backup":
+            from kuchenland_importer.infrastructure.backup_recovery import restore_backup
+
+            if args.journal is None or app.settings.workbook is None:
+                parser.error("restore-backup требует --journal и путь общей книги")
+            try:
+                backup = restore_backup(args.journal, app.settings.workbook, app.paths.backup)
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise ApplicationError(f"Восстановление книги отменено: {error}") from error
+            print("Исходная книга восстановлена." if backup else "Книга уже соответствует backup.")
+            if backup:
+                print(f"Резервная копия перед восстановлением: {backup}")
+            return 0
+        if args.command == "import-excel":
+            from kuchenland_importer.infrastructure.import_runner import run_import
+            from kuchenland_importer.infrastructure.writing_settings import load_writing_settings
+
+            if args.manifest is None:
+                parser.error("import-excel требует --manifest")
+            policy = load_writing_settings(
+                args.write_config or args.config.resolve().parent / "writing.toml",
+            )
+            import_outcome = run_import(
+                args.manifest,
+                args.config.resolve().parent / "columns.toml",
+                app.settings,
+                preserve_manual=policy.preserve_manual_values,
+            )
+            report = import_outcome.report
+            print(f"Обработано писем: {report.mails_processed}")
+            print(
+                f"Добавлено товаров: {report.products_added}; обновлено: {report.products_updated}"
+            )
+            print(
+                f"Без изменений: {report.products_unchanged}; пропущено: {report.products_skipped}"
+            )
+            print(f"Фото добавлено: {report.photos_added}; заменено: {report.photos_replaced}")
+            print(f"Ошибок: {report.error_count}; предупреждений: {report.warning_count}")
+            print(f"Книга сохранена: {import_outcome.committed}; backup: {import_outcome.backup}")
+            print(
+                f"Отчёт: {import_outcome.report_path}"
+                if import_outcome.report_path
+                else "JSON-отчёт недоступен; результат сохранён в журнале приложения."
+            )
+            return 1 if report.error_count else 0
         if args.command in {"preview-excel", "preview-seasons", "preview-photos"}:
             from uuid import uuid4
 
@@ -51,7 +116,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             run_id = uuid4().hex
             photos = (
                 app.paths.work / f"photo-preview-{run_id}"
-                if args.command == "preview-photos" else None
+                if args.command == "preview-photos"
+                else None
             )
             if photos is not None:
                 prefix = "photo-preview"
@@ -70,7 +136,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"Товаров в корректных вложениях: {preview.eligible_products}")
                 logger.info(
                     "Предпросмотр сезонов: товаров {}, маршрутов {}, ошибок {}",
-                    preview.products, preview.routes_assigned, preview.errors,
+                    preview.products,
+                    preview.routes_assigned,
+                    preview.errors,
                 )
             print(f"Отчёт: {preview.report}")
             print("Это предварительный разбор; общая книга не изменялась.")

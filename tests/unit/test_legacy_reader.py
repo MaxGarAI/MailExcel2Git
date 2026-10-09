@@ -36,3 +36,33 @@ def test_legacy_book_never_saved(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert legacy_reader.read_legacy(tmp_path / "source.xlsb") == ()
     book.Close.assert_called_once_with(SaveChanges=False)
     app.Quit.assert_called_once()
+
+
+@pytest.mark.parametrize("code,is_error", [(2007, True), (2045, True), (2045, False)])
+def test_legacy_error_is_never_imported_as_hresult(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, is_error: bool
+) -> None:
+    value = -2146828288 + code
+    cell = SimpleNamespace(Value=value, NumberFormat="General", MergeCells=False)
+    used = SimpleNamespace(
+        Row=1, Column=1, Rows=SimpleNamespace(Count=1), Columns=SimpleNamespace(Count=1)
+    )
+    sheet = SimpleNamespace(Type=-4167, Name="Data", UsedRange=used, Cells=Mock(return_value=cell))
+    book = SimpleNamespace(Sheets=[sheet], Worksheets=[sheet], Close=Mock())
+    app = SimpleNamespace(
+        Workbooks=SimpleNamespace(Open=Mock(return_value=book)),
+        Quit=Mock(),
+        WorksheetFunction=SimpleNamespace(IsError=Mock(return_value=is_error)),
+    )
+    monkeypatch.setattr(legacy_reader.pythoncom, "CoInitializeEx", Mock())
+    monkeypatch.setattr(legacy_reader.pythoncom, "CoUninitialize", Mock())
+    monkeypatch.setattr(legacy_reader.win32com.client, "DispatchEx", Mock(return_value=app))
+    if is_error and code == 2045:
+        with pytest.raises(ValueError, match="Неподдерживаемая ошибка"):
+            legacy_reader.read_legacy(tmp_path / "source.xls")
+    else:
+        result = legacy_reader.read_legacy(tmp_path / "source.xls")
+        expected = legacy_reader.ExcelErrorValue("#DIV/0!") if is_error else value
+        assert result[0].rows[0][0].value == expected
+    book.Close.assert_called_once_with(SaveChanges=False)
+    app.Quit.assert_called_once()

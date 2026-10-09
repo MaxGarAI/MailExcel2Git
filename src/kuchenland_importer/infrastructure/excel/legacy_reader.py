@@ -59,10 +59,13 @@ def read_legacy(path: Path) -> tuple[SourceSheet, ...]:
                     value = cell.Value
                     if (
                         isinstance(value, int)
-                        and value - (-2146828288) in ERROR_CODES
+                        and -2146826288 <= value <= -2146825289
                         and app.WorksheetFunction.IsError(cell)
                     ):
-                        normalized: CellValue = ExcelErrorValue(ERROR_CODES[value - (-2146828288)])
+                        error_code = value - (-2146828288)
+                        if error_code not in ERROR_CODES:
+                            raise ValueError(f"Неподдерживаемая ошибка Excel: {error_code}.")
+                        normalized: CellValue = ExcelErrorValue(ERROR_CODES[error_code])
                     else:
                         normalized = cell_value(value)
                     cells.append(SourceCell(normalized, str(cell.NumberFormat)))
