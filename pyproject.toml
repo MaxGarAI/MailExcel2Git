@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=75,<83"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kuchenland-importer"
+version = "0.3.0"
+description = "Windows procurement mail and Excel import tool"
+requires-python = ">=3.12,<3.13"
+dynamic = ["dependencies"]
+
+[project.scripts]
+kuchenland-importer = "kuchenland_importer.presentation.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+files = ["src"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["pythoncom", "pywintypes", "win32com.*", "openpyxl.*"]
+ignore_missing_imports = true

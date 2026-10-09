@@ -1,0 +1,8 @@
+# Runtime dependencies; tested exact versions are recorded in requirements-lock.txt.
+pywin32>=306; sys_platform == "win32"
+xlwings>=0.33,<1
+openpyxl>=3.1.5,<4
+pandas>=2.2,<4
+Pillow>=10.4,<13
+loguru>=0.7.2,<1
+# tkinter ships with the standard Windows Python distribution.

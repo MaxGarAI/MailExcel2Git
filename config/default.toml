@@ -1,0 +1,47 @@
+schema_version = 1
+
+[application]
+# Relative paths are resolved from this configuration file, not the current directory.
+# Set the selected local workbook in config/local.toml or with --workbook.
+workbook = ""
+data_dir = "../.runtime"
+
+[logging]
+level = "INFO"
+rotation_mb = 10
+retention_days = 30
+
+[excel]
+input_extensions = [".xlsx", ".xlsm", ".xls", ".xlsb"]
+excluded_sheets = ["удалено"]
+
+[[routes]]
+id = "spring"
+aliases = ["Весна", "Весна-лето"]
+calculation_sheet = "1. Весна 2.Весна-лето"
+photo_sheet = "ФОТО весна"
+
+[[routes]]
+id = "easter"
+aliases = ["Пасха"]
+calculation_sheet = "8. Пасха"
+photo_sheet = "ФОТО пасха"
+
+[[routes]]
+id = "summer"
+aliases = ["Лето", "Лето-осень"]
+calculation_sheet = "3. ЛЕТО 10.Лето-осень"
+photo_sheet = "ФОТО лето"
+
+[[routes]]
+id = "autumn"
+aliases = ["Осень"]
+calculation_sheet = "4. ОСЕНЬ"
+photo_sheet = "ФОТО осень"
+
+[[routes]]
+id = "winter"
+aliases = ["Зима"]
+# New sheet names; these sheets do not exist in the supplied workbook.
+calculation_sheet = "Зима"
+photo_sheet = "ФОТО зима"
