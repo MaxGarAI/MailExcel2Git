@@ -27,3 +27,11 @@ class CaptureStorageError(ApplicationError):
 
 class ExcelInputError(ApplicationError):
     """Excel preview inputs or report storage are invalid or unavailable."""
+
+
+class SeasonRoutingError(ApplicationError):
+    """A row has no unambiguous configured seasonal destination."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code

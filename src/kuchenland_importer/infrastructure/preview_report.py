@@ -7,6 +7,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from kuchenland_importer.application.normalize_workbook import NormalizeWorkbook
+from kuchenland_importer.application.resolve_season import ResolveSeason
+from kuchenland_importer.application.route_workbook import RouteWorkbook
 from kuchenland_importer.domain.cell_values import ExcelErrorValue
 from kuchenland_importer.domain.errors import ExcelInputError
 from kuchenland_importer.infrastructure.capture_loader import load_attachments
@@ -29,20 +31,29 @@ class PreviewSummary:
     report: Path
     products: int
     errors: int
+    routes_assigned: int = 0
+    eligible_products: int = 0
 
 
-def create_preview(manifest: Path, columns: Path, output: Path) -> PreviewSummary:
+def create_preview(
+    manifest: Path, columns: Path, output: Path, *, season_resolver: ResolveSeason | None = None
+) -> PreviewSummary:
     try:
         attachments = load_attachments(manifest)
         service = NormalizeWorkbook(load_columns(columns))
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise ExcelInputError(f"Не удалось прочитать входные данные: {error}") from error
-    result: dict[str, object] = {"schema_version": 1, "stage": "excel_preview"}
+    result: dict[str, object] = {
+        "schema_version": 1,
+        "stage": "season_preview" if season_resolver is not None else "excel_preview",
+    }
     files = []
     product_count = error_count = 0
+    routes_assigned = eligible_products = skipped_attachments = 0
     for attachment in attachments:
         try:
             preview = service.execute(attachment, WorkbookReader().read(attachment.path))
+            all_issues = preview.issues
             products = [
                 {
                     "article": p.article,
@@ -54,6 +65,27 @@ def create_preview(manifest: Path, columns: Path, output: Path) -> PreviewSummar
                 }
                 for p in preview.products
             ]
+            if season_resolver is not None:
+                routed = RouteWorkbook(season_resolver).execute(preview)
+                all_issues = routed.issues
+                for serialized, item in zip(products, routed.products, strict=True):
+                    assignment = item.assignment
+                    serialized["routing"] = (
+                        {
+                            "source_season": assignment.source_season,
+                            "source_year": assignment.source_year,
+                            "effective_year": assignment.effective_year,
+                            "effective_season": assignment.effective_season,
+                            "route_id": assignment.route.id,
+                            "calculation_sheet": assignment.route.calculation_sheet,
+                            "photo_sheet": assignment.route.photo_sheet,
+                            "sales_start_month": assignment.sales_start_month,
+                            "rule": assignment.rule,
+                        }
+                        if assignment is not None
+                        else None
+                    )
+                routes_assigned += sum(p.assignment is not None for p in routed.products)
             issues = [
                 {
                     "code": i.code,
@@ -61,9 +93,13 @@ def create_preview(manifest: Path, columns: Path, output: Path) -> PreviewSummar
                     "severity": i.severity.value,
                     "source": i.source,
                 }
-                for i in preview.issues
+                for i in all_issues
             ]
-            errors = sum(i.severity.value == "error" for i in preview.issues)
+            errors = sum(i.severity.value == "error" for i in all_issues)
+            if errors:
+                skipped_attachments += 1
+            else:
+                eligible_products += len(products)
             files.append(
                 {
                     "attachment": str(attachment.path),
@@ -79,6 +115,7 @@ def create_preview(manifest: Path, columns: Path, output: Path) -> PreviewSummar
             product_count += len(products)
             error_count += errors
         except Exception as error:
+            skipped_attachments += 1
             files.append(
                 {
                     "attachment": str(attachment.path),
@@ -93,6 +130,10 @@ def create_preview(manifest: Path, columns: Path, output: Path) -> PreviewSummar
     result["files"] = files
     result["product_count"] = product_count
     result["error_count"] = error_count
+    if season_resolver is not None:
+        result["routes_assigned"] = routes_assigned
+        result["eligible_product_count"] = eligible_products
+        result["skipped_attachment_count"] = skipped_attachments
     partial = output.with_suffix(".json.part")
     try:
         with partial.open("x", encoding="utf-8") as stream:
@@ -102,4 +143,4 @@ def create_preview(manifest: Path, columns: Path, output: Path) -> PreviewSummar
         partial.rename(output)
     except (OSError, ValueError, TypeError) as error:
         raise ExcelInputError(f"Не удалось сохранить отчёт: {error}") from error
-    return PreviewSummary(output, product_count, error_count)
+    return PreviewSummary(output, product_count, error_count, routes_assigned, eligible_products)

@@ -1,46 +1,11 @@
 """Validated immutable configuration; seasons are extensible data, not an enum."""
 
-import re
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
 from kuchenland_importer.domain.errors import ConfigurationError
-
-
-def normalize_alias(value: str) -> str:
-    text = unicodedata.normalize("NFKC", value).casefold().replace("ё", "е")
-    text = re.sub(r"[‐‑‒–—−]", "-", text)
-    return re.sub(r"\s*-\s*", "-", " ".join(text.split()))
-
-
-def validate_sheet_name(name: str) -> None:
-    if (
-        not name.strip()
-        or name != name.strip()
-        or len(name) > 31
-        or any(character in name for character in "[]:*?/\\")
-        or any(ord(character) < 32 for character in name)
-        or name.startswith("'")
-        or name.endswith("'")
-    ):
-        raise ConfigurationError(f"Недопустимое имя вкладки Excel: {name!r}.")
-
-
-@dataclass(frozen=True, slots=True)
-class SeasonRoute:
-    id: str
-    aliases: tuple[str, ...]
-    calculation_sheet: str
-    photo_sheet: str
-
-    def __post_init__(self) -> None:
-        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.id):
-            raise ConfigurationError(f"Недопустимый идентификатор сезона: {self.id!r}.")
-        if not self.aliases or any(not alias.strip() for alias in self.aliases):
-            raise ConfigurationError(f"Сезону {self.id} нужны непустые названия.")
-        validate_sheet_name(self.calculation_sheet)
-        validate_sheet_name(self.photo_sheet)
+from kuchenland_importer.domain.season import SeasonRoute as SeasonRoute
+from kuchenland_importer.domain.season import normalize_alias as normalize_alias
 
 
 @dataclass(frozen=True, slots=True)
