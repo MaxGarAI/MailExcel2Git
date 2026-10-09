@@ -6,6 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from kuchenland_importer.application.bind_photos import BindPhotos
 from kuchenland_importer.application.normalize_workbook import NormalizeWorkbook
 from kuchenland_importer.application.resolve_season import ResolveSeason
 from kuchenland_importer.application.route_workbook import RouteWorkbook
@@ -13,7 +14,9 @@ from kuchenland_importer.domain.cell_values import ExcelErrorValue
 from kuchenland_importer.domain.errors import ExcelInputError
 from kuchenland_importer.infrastructure.capture_loader import load_attachments
 from kuchenland_importer.infrastructure.excel.columns import load_columns
+from kuchenland_importer.infrastructure.excel.photo_reader import PhotoReader
 from kuchenland_importer.infrastructure.excel.reader import WorkbookReader
+from kuchenland_importer.infrastructure.photo_store import PhotoStore
 
 
 def encode_value(value: object) -> object:
@@ -33,26 +36,37 @@ class PreviewSummary:
     errors: int
     routes_assigned: int = 0
     eligible_products: int = 0
+    photos: int = 0
 
 
 def create_preview(
-    manifest: Path, columns: Path, output: Path, *, season_resolver: ResolveSeason | None = None
+    manifest: Path, columns: Path, output: Path, *, season_resolver: ResolveSeason | None = None,
+    photo_directory: Path | None = None,
 ) -> PreviewSummary:
     try:
         attachments = load_attachments(manifest)
-        service = NormalizeWorkbook(load_columns(columns))
+        registry = load_columns(columns)
+        service = NormalizeWorkbook(registry)
+        binder = BindPhotos(registry, PhotoStore(photo_directory)) if photo_directory else None
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise ExcelInputError(f"Не удалось прочитать входные данные: {error}") from error
     result: dict[str, object] = {
         "schema_version": 1,
-        "stage": "season_preview" if season_resolver is not None else "excel_preview",
+        "stage": "photo_preview" if binder is not None
+        else "season_preview" if season_resolver is not None else "excel_preview",
     }
     files = []
     product_count = error_count = 0
     routes_assigned = eligible_products = skipped_attachments = 0
+    photo_count = eligible_photos = 0
     for attachment in attachments:
         try:
-            preview = service.execute(attachment, WorkbookReader().read(attachment.path))
+            sheets = WorkbookReader().read(attachment.path)
+            preview = service.execute(attachment, sheets)
+            if binder is not None:
+                preview = binder.execute(
+                    preview, sheets, PhotoReader().read(attachment.path, photo_directory)
+                )
             all_issues = preview.issues
             products = [
                 {
@@ -65,6 +79,16 @@ def create_preview(
                 }
                 for p in preview.products
             ]
+            file_photos = sum(p.photo is not None for p in preview.products)
+            if binder is not None:
+                for serialized, product in zip(products, preview.products, strict=True):
+                    asset = product.photo
+                    serialized["photo"] = (
+                        {"path": str(asset.path), "pixel_sha256": asset.pixel_sha256,
+                         "width": asset.width, "height": asset.height,
+                         "image_count": asset.image_count}
+                        if asset is not None else None
+                    )
             if season_resolver is not None:
                 routed = RouteWorkbook(season_resolver).execute(preview)
                 all_issues = routed.issues
@@ -100,6 +124,7 @@ def create_preview(
                 skipped_attachments += 1
             else:
                 eligible_products += len(products)
+                eligible_photos += file_photos
             files.append(
                 {
                     "attachment": str(attachment.path),
@@ -113,6 +138,7 @@ def create_preview(
                 }
             )
             product_count += len(products)
+            photo_count += file_photos
             error_count += errors
         except Exception as error:
             skipped_attachments += 1
@@ -134,6 +160,9 @@ def create_preview(
         result["routes_assigned"] = routes_assigned
         result["eligible_product_count"] = eligible_products
         result["skipped_attachment_count"] = skipped_attachments
+    if binder is not None:
+        result["photo_count"] = photo_count
+        result["eligible_photo_count"] = eligible_photos
     partial = output.with_suffix(".json.part")
     try:
         with partial.open("x", encoding="utf-8") as stream:
@@ -143,4 +172,6 @@ def create_preview(
         partial.rename(output)
     except (OSError, ValueError, TypeError) as error:
         raise ExcelInputError(f"Не удалось сохранить отчёт: {error}") from error
-    return PreviewSummary(output, product_count, error_count, routes_assigned, eligible_products)
+    return PreviewSummary(
+        output, product_count, error_count, routes_assigned, eligible_products, photo_count
+    )

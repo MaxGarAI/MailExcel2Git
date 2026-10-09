@@ -18,7 +18,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "command",
         nargs="?",
         default="diagnose",
-        choices=("diagnose", "capture-outlook", "preview-excel", "preview-seasons"),
+        choices=(
+            "diagnose", "capture-outlook", "preview-excel", "preview-seasons", "preview-photos"
+        ),
     )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--config", type=Path, required=True, help="Путь к настройкам TOML")
@@ -34,7 +36,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("Требуется Python 3.12.", file=sys.stderr)
             return 2
         app = Application.create(args.config, workbook=args.workbook, data_dir=args.data_dir)
-        if args.command in {"preview-excel", "preview-seasons"}:
+        if args.command in {"preview-excel", "preview-seasons", "preview-photos"}:
             from uuid import uuid4
 
             from kuchenland_importer.application.resolve_season import ResolveSeason
@@ -43,16 +45,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.manifest is None:
                 parser.error(f"{args.command} требует --manifest")
             resolver = (
-                ResolveSeason(app.settings.routes) if args.command == "preview-seasons" else None
+                ResolveSeason(app.settings.routes) if args.command != "preview-excel" else None
             )
             prefix = "season-preview" if resolver is not None else "excel-preview"
+            run_id = uuid4().hex
+            photos = (
+                app.paths.work / f"photo-preview-{run_id}"
+                if args.command == "preview-photos" else None
+            )
+            if photos is not None:
+                prefix = "photo-preview"
             preview = create_preview(
                 args.manifest,
                 args.config.resolve().parent / "columns.toml",
-                app.paths.reports / f"{prefix}-{uuid4().hex}.json",
+                app.paths.reports / f"{prefix}-{run_id}.json",
                 season_resolver=resolver,
+                photo_directory=photos,
             )
             print(f"Прочитано товаров: {preview.products}; ошибок: {preview.errors}")
+            if photos is not None:
+                print(f"Товаров с извлечённым фото: {preview.photos}")
             if resolver is not None:
                 print(f"Назначено маршрутов: {preview.routes_assigned}")
                 print(f"Товаров в корректных вложениях: {preview.eligible_products}")

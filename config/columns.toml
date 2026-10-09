@@ -2,7 +2,7 @@
 article = ["Артикул", "Article", "SKU", "Item No", "Item Number"]
 supplier = ["Поставщик", "Supplier", "Производитель", "Manufacturer"]
 season = ["Сезон", "Season"]
-name = ["Наименование", "Название", "Product Name", "Description of goods"]
+name = ["Наименование", "Название", "Name", "Product Name", "Description of goods"]
 sales_start = ["Старт продаж", "Начало продаж", "Sales Start"]
 collection = ["Коллекция", "Collection"]
 line = ["Линия", "Line"]

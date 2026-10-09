@@ -18,10 +18,13 @@ class PhotoAsset:
     pixel_sha256: str
     width: int
     height: int
+    image_count: int = 1
 
     def __post_init__(self) -> None:
         if not self.path.is_absolute() or self.width < 1 or self.height < 1:
             raise ValueError("Фотография должна иметь абсолютный путь и положительный размер.")
+        if type(self.image_count) is not int or not 1 <= self.image_count <= 16:
+            raise ValueError("Фото должно содержать от 1 до 16 разных изображений.")
         digest = self.pixel_sha256
         if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
             raise ValueError("Ожидается SHA-256 нормализованных пикселей.")
