@@ -5,6 +5,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from kuchenland_importer.application.job_control import JobCancelled, JobControl
 from kuchenland_importer.application.plan_import import make_plan
 from kuchenland_importer.application.resolve_season import ResolveSeason
 from kuchenland_importer.domain.errors import ExcelInputError
@@ -35,6 +36,7 @@ def run_import(
     settings: Settings,
     *,
     preserve_manual: bool = True,
+    control: JobControl | None = None,
 ) -> ImportOutcome:
     if settings.workbook is None:
         raise ExcelInputError("Не указан путь общей книги.")
@@ -44,11 +46,15 @@ def run_import(
     work.mkdir(parents=True, exist_ok=False)
     reports.mkdir(parents=True, exist_ok=True)
     registry = load_columns(columns)
+    if control:
+        control.checkpoint("Чтение вложений, сезонов и фотографий")
     try:
         batch = prepare_batch(manifest, registry, ResolveSeason(settings.routes), work / "incoming")
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise ExcelInputError(f"Не удалось проверить манифест: {error}") from error
     logger.info("Подготовлено вложений: {}; запуск {}", len(batch), transaction.run_id)
+    if control:
+        control.checkpoint("Проверка общей книги и существующих товаров")
     try:
         with transaction:
             master = read_snapshot(
@@ -59,7 +65,11 @@ def run_import(
                 work / "previous",
             )
             plan = make_plan(batch, master, frozenset(ERROR_FORMULAS))
+            if control:
+                control.checkpoint("Проверка маршрутов и выбор новых писем")
             if plan.products:
+                if control:
+                    control.begin_write()
                 written = write_master(
                     transaction.work,
                     master,
@@ -86,6 +96,9 @@ def run_import(
                 photos_replaced=sum(p.photo_action == PhotoAction.REPLACE for p in written),
                 issues=plan.issues,
             )
+    except JobCancelled:
+        logger.info("Импорт отменён пользователем до записи")
+        raise
     except Exception as error:
         logger.exception("Импорт не завершён; резервная копия: {}", transaction.backup)
         failed = ImportReport(

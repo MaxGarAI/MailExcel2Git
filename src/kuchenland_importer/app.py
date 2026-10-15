@@ -62,7 +62,7 @@ class Application:
                     checks.append("Общий файл доступен для чтения; запись не проверялась.")
             except OSError as error:
                 errors.append(f"Общий файл недоступен: {error}")
-        warnings.append("Диагностика не подключается к Office; импорт товаров ещё не реализован.")
+        warnings.append("Диагностика не подключается к Office; доступность COM не проверялась.")
         logger.info("Диагностика: ошибок {}, предупреждений {}", len(errors), len(warnings))
         return DiagnosticResult(tuple(checks), tuple(warnings), tuple(errors))
 

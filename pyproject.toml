@@ -4,13 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kuchenland-importer"
-version = "0.6.0"
+version = "0.7.0"
 description = "Windows procurement mail and Excel import tool"
 requires-python = ">=3.12,<3.13"
 dynamic = ["dependencies"]
 
 [project.scripts]
 kuchenland-importer = "kuchenland_importer.presentation.cli:main"
+
+[project.gui-scripts]
+kuchenland-importer-gui = "kuchenland_importer.presentation.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

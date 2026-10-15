@@ -23,3 +23,5 @@ config/local.toml
 *.xlsm
 *.xlsb
 ~$*
+
+config/columns.local.toml
