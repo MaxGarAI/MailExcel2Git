@@ -3,6 +3,16 @@
 Windows-приложение для импорта товаров из выделенных писем классического Outlook
 в локальную общую книгу Excel. Python 3.12, Office Professional Plus 2024 / Microsoft 365.
 
+## Скачать программу
+
+[Скачать ZIP для Windows x64](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.0/KuchenlandImporter-0.8.0-windows-x64.zip)
+— распакуйте целиком и запустите `KuchenlandImporter.exe`.
+
+[Страница выпуска и контрольная сумма](https://github.com/MaxGarAI/MailExcel2Git/releases/tag/v0.8.0)
+· [Инструкция по запуску](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.0/RUNNING-WINDOWS.md).
+Python устанавливать не требуется; Excel и классический Outlook должны быть установлены.
+Выпуск предназначен для приёмки на целевом устройстве; первый импорт — на копии книги.
+
 ## Текущий статус
 
 Реализованы этапы 1–8: получение писем, разбор Excel, сезоны, фотографии,
