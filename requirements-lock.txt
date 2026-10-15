@@ -1,5 +1,5 @@
-# Tested development environment: Windows, Python 3.12.8, stage 1, 2026-10-09.
-# Includes runtime and QA dependencies; Office integration is not yet tested.
+# Tested runtime and QA: Windows x64, Python 3.12.8, stage 8, 2026-10-15.
+# Microsoft 365 Excel tested; real Outlook account and Office 2024 need target acceptance.
 colorama==0.4.6
 et_xmlfile==2.0.0
 iniconfig==2.3.1

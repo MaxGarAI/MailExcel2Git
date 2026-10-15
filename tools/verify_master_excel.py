@@ -35,6 +35,7 @@ from kuchenland_importer.infrastructure.excel.master_snapshot import read_snapsh
 from kuchenland_importer.infrastructure.excel.master_writer import write_master  # noqa: E402
 from kuchenland_importer.infrastructure.excel.owned_session import owned_workbook  # noqa: E402
 from kuchenland_importer.infrastructure.excel.photo_reader import PhotoReader  # noqa: E402
+from kuchenland_importer.infrastructure.excel.row_format import copy_row_format  # noqa: E402
 from kuchenland_importer.infrastructure.excel.verify_master import verify_master  # noqa: E402
 from kuchenland_importer.infrastructure.file_transaction import (  # noqa: E402
     WorkbookTransaction,
@@ -171,6 +172,23 @@ def main():
     assert book["Весна"]["E2"].value == "=SUM(E4:E20)"
     assert book["удалено"]["B2"].value == "=1+2"
     book.close()
+    # Regression: formatting the next row must not copy a native in-cell picture.
+    formats_copy = root / "formats.xlsx"
+    copy2(target, formats_copy)
+    with owned_workbook(formats_copy) as excel:
+        sheet = excel.Worksheets("ФОТО весна")
+        copy_row_format(sheet, 5, 6, master.layouts["ФОТО весна"])
+        assert sheet.Cells(6, 1).Value is None
+        excel.Save()
+    formatting = load_workbook(formats_copy)
+    source_cell, target_cell = formatting["ФОТО весна"]["B5"], formatting["ФОТО весна"]["B6"]
+    assert source_cell.fill.patternType == target_cell.fill.patternType
+    assert [
+        getattr(source_cell.border, edge).style for edge in ("left", "right", "top", "bottom")
+    ] == [getattr(target_cell.border, edge).style for edge in ("left", "right", "top", "bottom")]
+    formatting.close()
+    pictures = PhotoReader().read(formats_copy).pictures
+    assert len([p for p in pictures if p.native and p.sheet == "ФОТО весна"]) == 1
     sorted_copy = root / "sorted.xlsx"
     copy2(target, sorted_copy)
     with owned_workbook(sorted_copy) as excel:

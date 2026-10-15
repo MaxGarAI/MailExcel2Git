@@ -9,13 +9,14 @@ from kuchenland_importer.infrastructure.column_settings import column_path, read
 
 class ColumnsDialog(tk.Toplevel):
     def __init__(self, parent: tk.Tk, config: Path) -> None:
+        fields = read_fields(column_path(config))
         super().__init__(parent)
         self.title("Названия столбцов поставщиков")
         self.geometry("850x620")
         self.transient(parent)
         self.grab_set()
         self.destination = config.parent / "columns.local.toml"
-        self.fields = read_fields(column_path(config))
+        self.fields = fields
         body = ttk.Frame(self, padding=16)
         body.pack(fill="both", expand=True)
         ttk.Label(

@@ -10,9 +10,14 @@ from loguru import logger
 from kuchenland_importer import __version__
 from kuchenland_importer.app import Application
 from kuchenland_importer.domain.errors import ApplicationError
+from kuchenland_importer.infrastructure.bootstrap import resolve_configuration
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Kuchenland: диагностика и предпросмотр импорта")
     parser.add_argument(
         "command",
@@ -30,7 +35,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument("--config", type=Path, required=True, help="Путь к настройкам TOML")
+    parser.add_argument("--config", type=Path, help="Путь к настройкам TOML")
     parser.add_argument("--workbook", type=Path, help="Переопределить путь общей книги")
     parser.add_argument("--data-dir", type=Path, help="Переопределить рабочий каталог")
     parser.add_argument("--manifest", type=Path, help="Манифест полученных вложений")
@@ -44,6 +49,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if sys.version_info[:2] != (3, 12):
             print("Требуется Python 3.12.", file=sys.stderr)
             return 2
+        args.config = resolve_configuration(args.config).active
         app = Application.create(args.config, workbook=args.workbook, data_dir=args.data_dir)
         if args.command == "recover-lock":
             from kuchenland_importer.infrastructure.stale_lock import release_stale_lock

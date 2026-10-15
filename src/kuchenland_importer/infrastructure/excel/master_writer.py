@@ -1,7 +1,10 @@
 """Apply a validated plan solely to an owned working copy through Microsoft Excel."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+
+from loguru import logger
 
 from kuchenland_importer.application.target_fields import product_fields
 from kuchenland_importer.domain.master import MasterSnapshot
@@ -39,6 +42,7 @@ def write_master(
     plan: WritePlan,
     *,
     preserve_manual: bool,
+    progress: Callable[[int, int], None] | None = None,
 ) -> tuple[WrittenProduct, ...]:
     written = []
     with owned_workbook(path) as book:
@@ -99,6 +103,10 @@ def write_master(
                     decision,
                 )
             )
+            if len(written) % 10 == 0 or len(written) == len(plan.products):
+                logger.info("Запись товаров: {} из {}", len(written), len(plan.products))
+            if progress:
+                progress(len(written), len(plan.products))
         restore_service(book, service)
         restore_filters(book, master, filters)
         save_state(book, master, plan)

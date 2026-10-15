@@ -7,6 +7,7 @@ from kuchenland_importer.domain.master import MasterSnapshot, SheetLayout
 from kuchenland_importer.domain.write_plan import WritePlan
 from kuchenland_importer.infrastructure.excel.com_values import write_value
 from kuchenland_importer.infrastructure.excel.formula_routes import rebind_formula
+from kuchenland_importer.infrastructure.excel.row_format import copy_row_format
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,12 +70,8 @@ def append_row(sheet: Any, layout: SheetLayout) -> int:
     if sheet.Application.WorksheetFunction.CountA(area):
         sheet.Rows(row).Insert()
     if last >= layout.first_row:
-        # Formats only: copying another product's formulas/values would be incorrect.
-        sheet.Rows(last).Copy()
-        sheet.Rows(row).PasteSpecial(Paste=-4122)
-        sheet.Application.CutCopyMode = False
-        sheet.Rows(row).RowHeight = sheet.Rows(last).RowHeight
-    sheet.Range(sheet.Cells(row, 1), sheet.Cells(row, len(layout.columns))).ClearContents()
+        copy_row_format(sheet, last, row, layout)
+    sheet.Range(sheet.Cells(row, 1), sheet.Cells(row, max(layout.columns.values()))).ClearContents()
     layout.last_row = max(layout.last_row, row)
     return row
 

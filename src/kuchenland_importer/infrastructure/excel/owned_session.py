@@ -7,6 +7,7 @@ from typing import Any
 
 import pythoncom
 import win32com.client
+from loguru import logger
 
 
 @contextmanager
@@ -14,6 +15,7 @@ def owned_workbook(path: Path) -> Iterator[Any]:
     pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
     app: Any = None
     book: Any = None
+    failed = False
     try:
         app = win32com.client.DispatchEx("Excel.Application")
         app.Visible = False
@@ -42,14 +44,22 @@ def owned_workbook(path: Path) -> Iterator[Any]:
         if any(sheet.Type != -4167 for sheet in book.Sheets):
             raise ValueError("Листы макросов не допускаются в общей книге.")
         yield book
+    except BaseException:
+        failed = True
+        raise
     finally:
-        try:
-            if book is not None:
-                book.Close(SaveChanges=False)
-        finally:
-            try:
-                if app is not None:
-                    app.Quit()
-            finally:
-                book = app = None
-                pythoncom.CoUninitialize()
+        cleanup_errors: list[Exception] = []
+        for resource, method, arguments in (
+            (book, "Close", {"SaveChanges": False}),
+            (app, "Quit", {}),
+        ):
+            if resource is not None:
+                try:
+                    getattr(resource, method)(**arguments)
+                except Exception as error:
+                    cleanup_errors.append(error)
+                    logger.warning("Не удалось выполнить Excel.{}: {}", method, error)
+        book = app = None
+        pythoncom.CoUninitialize()
+        if cleanup_errors and not failed:
+            raise cleanup_errors[0]

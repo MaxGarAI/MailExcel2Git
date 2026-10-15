@@ -5,7 +5,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from kuchenland_importer.application.job_control import JobCancelled, JobControl
+from kuchenland_importer.application.job_control import JobCancelled, JobControl, Progress
 from kuchenland_importer.application.plan_import import make_plan
 from kuchenland_importer.application.resolve_season import ResolveSeason
 from kuchenland_importer.domain.errors import ExcelInputError
@@ -75,7 +75,18 @@ def run_import(
                     master,
                     plan,
                     preserve_manual=preserve_manual,
+                    progress=(
+                        lambda done, total: control.publish(
+                            Progress(
+                                f"Записано товаров: {done} из {total}. Отмена недоступна.", False
+                            )
+                        )
+                    )
+                    if control
+                    else None,
                 )
+                if control:
+                    control.publish(Progress("Проверка сохранённых значений и фотографий", False))
                 verify_master(transaction.work, master, plan, written, work / "verified")
                 transaction.commit()
             else:
