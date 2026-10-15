@@ -6,11 +6,14 @@ from uuid import uuid4
 from kuchenland_importer.domain.photos import EmbeddedPhoto, PhotoExtraction, PhotoProblem
 from kuchenland_importer.infrastructure.excel.drawing_photos import read_drawings
 from kuchenland_importer.infrastructure.excel.ooxml_package import OOXMLPackage
+from kuchenland_importer.infrastructure.excel.read_limits import SOURCE_LIMITS, ReadLimits
 from kuchenland_importer.infrastructure.excel.rich_photos import native_images, read_native
 
 
 class PhotoReader:
-    def read(self, path: Path, working_dir: Path | None = None) -> PhotoExtraction:
+    def read(
+        self, path: Path, working_dir: Path | None = None, *, limits: ReadLimits = SOURCE_LIMITS
+    ) -> PhotoExtraction:
         if path.suffix.lower() in {".xls", ".xlsb"} and working_dir is not None:
             from kuchenland_importer.infrastructure.excel.legacy_photo_copy import (
                 convert_photo_copy,
@@ -20,12 +23,12 @@ class PhotoReader:
             copy = working_dir / f"photo-source-{uuid4().hex}.xlsx"
             try:
                 convert_photo_copy(path, copy)
-                return self.read(copy)
+                return self.read(copy, limits=limits)
             finally:
                 copy.unlink(missing_ok=True)
         if path.suffix.lower() not in {".xlsx", ".xlsm"}:
             raise ValueError("Фото XLS/XLSB требуют конвертации рабочей копии через Excel.")
-        package = OOXMLPackage(path)
+        package = OOXMLPackage(path, limits=limits)
         try:
             images = native_images(package)
             pictures: list[EmbeddedPhoto] = []

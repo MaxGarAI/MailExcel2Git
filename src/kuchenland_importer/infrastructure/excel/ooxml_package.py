@@ -5,6 +5,8 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from kuchenland_importer.infrastructure.excel.read_limits import SOURCE_LIMITS, ReadLimits
+
 S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -12,14 +14,22 @@ D = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
 
 
 class OOXMLPackage:
-    def __init__(self, path: Path) -> None:
-        if path.stat().st_size > 50 * 1024 * 1024:
-            raise ValueError("Книга превышает лимит чтения 50 МБ.")
+    def __init__(self, path: Path, *, limits: ReadLimits = SOURCE_LIMITS) -> None:
+        self.limits = limits
         self.archive = ZipFile(path)
         entries = self.archive.infolist()
-        if len(entries) > 10000 or sum(e.file_size for e in entries) > 256 * 1024 * 1024:
+        total = sum(e.file_size for e in entries)
+        if len(entries) > limits.max_parts:
             self.archive.close()
-            raise ValueError("OOXML превышает лимит распакованного размера / числа частей.")
+            raise ValueError(
+                f"Книга «{path.name}»: частей OOXML {len(entries)}, допустимо {limits.max_parts}."
+            )
+        if limits.max_uncompressed_bytes is not None and total > limits.max_uncompressed_bytes:
+            self.archive.close()
+            raise ValueError(
+                f"Книга «{path.name}»: распакованный объём {total / 1024**2:.1f} МБ "
+                f"превышает допустимые {limits.max_uncompressed_bytes / 1024**2:.0f} МБ."
+            )
 
     def read(self, part: str, limit: int = 20 * 1024 * 1024) -> bytes:
         if self.archive.getinfo(part).file_size > limit:
@@ -27,7 +37,7 @@ class OOXMLPackage:
         return self.archive.read(part)
 
     def xml(self, part: str) -> ET.Element:
-        data = self.read(part, 16 * 1024 * 1024)
+        data = self.read(part, self.limits.max_xml_bytes)
         if b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper():
             raise ValueError("Объявления DTD/ENTITY в OOXML не поддерживаются.")
         return ET.fromstring(data)

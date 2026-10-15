@@ -9,6 +9,8 @@ from openpyxl import load_workbook
 
 from kuchenland_importer.domain.cell_values import CellValue, ExcelErrorValue
 from kuchenland_importer.domain.workbook import SourceCell, SourceSheet
+from kuchenland_importer.infrastructure.excel.ooxml_package import OOXMLPackage
+from kuchenland_importer.infrastructure.excel.read_limits import SOURCE_LIMITS, ReadLimits
 
 
 def cell_value(value: object, is_error: bool = False) -> CellValue:
@@ -20,15 +22,15 @@ def cell_value(value: object, is_error: bool = False) -> CellValue:
 
 
 class WorkbookReader:
-    def read(self, path: Path) -> tuple[SourceSheet, ...]:
+    def read(self, path: Path, *, limits: ReadLimits = SOURCE_LIMITS) -> tuple[SourceSheet, ...]:
         if path.suffix.lower() in {".xls", ".xlsb"}:
             from kuchenland_importer.infrastructure.excel.legacy_reader import read_legacy
 
             return read_legacy(path)
         if path.suffix.lower() not in {".xlsx", ".xlsm"}:
             raise ValueError("Неизвестный формат Excel.")
-        if path.stat().st_size > 50 * 1024 * 1024:
-            raise ValueError("Вложение превышает лимит чтения 50 МБ.")
+        package = OOXMLPackage(path, limits=limits)
+        package.close()
         formulas = load_workbook(path, data_only=False, keep_links=False)
         try:
             values = load_workbook(path, data_only=True, keep_links=False)

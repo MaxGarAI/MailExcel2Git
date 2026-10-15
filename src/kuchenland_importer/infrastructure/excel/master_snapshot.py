@@ -13,6 +13,7 @@ from kuchenland_importer.domain.photos import EmbeddedPhoto
 from kuchenland_importer.domain.season import SeasonRoute
 from kuchenland_importer.infrastructure.excel.master_layout import layout_for, master_registry
 from kuchenland_importer.infrastructure.excel.photo_reader import PhotoReader
+from kuchenland_importer.infrastructure.excel.read_limits import MASTER_LIMITS
 from kuchenland_importer.infrastructure.excel.reader import WorkbookReader
 from kuchenland_importer.infrastructure.photo_store import PhotoStore
 
@@ -26,7 +27,7 @@ def read_snapshot(
     excluded: tuple[str, ...],
     photo_directory: Path,
 ) -> MasterSnapshot:
-    sheets = WorkbookReader().read(path)
+    sheets = WorkbookReader().read(path, limits=MASTER_LIMITS)
     configured = {name for route in routes for name in (route.calculation_sheet, route.photo_sheet)}
     excluded_keys = {name.casefold() for name in excluded}
     layouts = {}
@@ -57,7 +58,7 @@ def read_snapshot(
                     item.received_day = max(item.received_day or day, day)
             if "photo" in layout.columns:
                 cells[(sheet.name, row, layout.columns["photo"])] = article
-    extracted = PhotoReader().read(path, photo_directory)
+    extracted = PhotoReader().read(path, photo_directory, limits=MASTER_LIMITS)
     grouped: dict[str, list[EmbeddedPhoto]] = defaultdict(list)
     for photo in extracted.pictures:
         photo_article = cells.get((photo.sheet, photo.row, photo.column))

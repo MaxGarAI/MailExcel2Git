@@ -55,8 +55,10 @@ def run_import(
     logger.info("Подготовлено вложений: {}; запуск {}", len(batch), transaction.run_id)
     if control:
         control.checkpoint("Проверка общей книги и существующих товаров")
+    phase = "создание резервной и рабочей копий общей книги"
     try:
         with transaction:
+            phase = f"чтение общей книги «{settings.workbook.name}»"
             master = read_snapshot(
                 transaction.work,
                 registry,
@@ -64,12 +66,14 @@ def run_import(
                 settings.excluded_sheets,
                 work / "previous",
             )
+            phase = "проверка маршрутов и новых версий товаров"
             plan = make_plan(batch, master, frozenset(ERROR_FORMULAS))
             if control:
                 control.checkpoint("Проверка маршрутов и выбор новых писем")
             if plan.products:
                 if control:
                     control.begin_write()
+                phase = f"запись общей книги «{settings.workbook.name}»"
                 written = write_master(
                     transaction.work,
                     master,
@@ -87,7 +91,9 @@ def run_import(
                 )
                 if control:
                     control.publish(Progress("Проверка сохранённых значений и фотографий", False))
+                phase = f"проверка сохранённой общей книги «{settings.workbook.name}»"
                 verify_master(transaction.work, master, plan, written, work / "verified")
+                phase = f"замена общей книги «{settings.workbook.name}»"
                 transaction.commit()
             else:
                 written = ()
@@ -117,7 +123,7 @@ def run_import(
             issues=(
                 ImportIssue(
                     "IMPORT_ABORTED",
-                    str(error),
+                    f"{phase}: {error}",
                     Severity.ERROR,
                     str(settings.workbook),
                 ),
@@ -134,7 +140,9 @@ def run_import(
             },
             committed=transaction.committed,
         )
-        raise ExcelInputError(f"Импорт отменён: {error}. Backup: {transaction.backup}") from error
+        raise ExcelInputError(
+            f"Импорт отменён — {phase}: {error}. Backup: {transaction.backup}"
+        ) from error
     report_path = reports / f"import-{transaction.run_id}.json"
     data = {
         "schema_version": 1,

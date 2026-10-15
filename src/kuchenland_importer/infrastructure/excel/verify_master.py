@@ -12,6 +12,7 @@ from kuchenland_importer.domain.master import MasterSnapshot
 from kuchenland_importer.domain.write_plan import WritePlan
 from kuchenland_importer.infrastructure.excel.master_writer import WrittenProduct
 from kuchenland_importer.infrastructure.excel.photo_reader import PhotoReader
+from kuchenland_importer.infrastructure.excel.read_limits import MASTER_LIMITS
 from kuchenland_importer.infrastructure.photo_store import PhotoStore
 
 
@@ -69,7 +70,7 @@ def verify_master(
                         )
     finally:
         book.close()
-    extraction = PhotoReader().read(path)
+    extraction = PhotoReader().read(path, limits=MASTER_LIMITS)
     photos = {(p.sheet, p.row, p.column): p for p in extraction.pictures if p.native}
     store = PhotoStore(directory)
     for saved in written:
