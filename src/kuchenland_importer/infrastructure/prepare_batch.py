@@ -3,10 +3,11 @@
 from pathlib import Path
 
 from kuchenland_importer.application.bind_photos import BindPhotos
-from kuchenland_importer.application.normalize_workbook import NormalizeWorkbook, article_value
+from kuchenland_importer.application.normalize_workbook import NormalizeWorkbook
 from kuchenland_importer.application.resolve_season import ResolveSeason
 from kuchenland_importer.application.route_workbook import RouteWorkbook
-from kuchenland_importer.application.table_schema import ColumnRegistry, find_header
+from kuchenland_importer.application.source_tables import classify_source_tables
+from kuchenland_importer.application.table_schema import ColumnRegistry
 from kuchenland_importer.domain.import_batch import PreparedAttachment
 from kuchenland_importer.domain.report import ImportIssue, Severity
 from kuchenland_importer.domain.workbook import SourceSheet
@@ -20,25 +21,8 @@ def known_articles(
     sheets: tuple[SourceSheet, ...],
     registry: ColumnRegistry,
 ) -> tuple[frozenset[str], bool]:
-    articles: set[str] = set()
-    complete = True
-    for sheet in sheets:
-        try:
-            header = find_header(sheet, registry)
-        except ValueError:
-            complete = False
-            continue
-        if header is None or not {"article", "supplier", "season"} <= set(header.columns):
-            continue
-        column = header.columns.index("article")
-        for row in sheet.rows[header.row + header.depth - 1 :]:
-            try:
-                articles.add(article_value(row[column]))
-            except ValueError:
-                if row[column].value not in {None, ""}:
-                    complete = False
-                continue
-    return frozenset(articles), complete
+    tables = classify_source_tables(sheets, registry)
+    return tables.articles, tables.identity_complete
 
 
 def prepare_batch(

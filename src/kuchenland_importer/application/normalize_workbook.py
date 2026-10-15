@@ -1,12 +1,12 @@
 """Normalize by field names; join photo descriptions by article, not row position."""
 
-import re
 from dataclasses import dataclass
 
+from kuchenland_importer.application.article_identity import article_value as article_value
+from kuchenland_importer.application.source_tables import classify_source_tables
 from kuchenland_importer.application.table_schema import (
     ColumnRegistry,
     TableHeader,
-    find_header,
 )
 from kuchenland_importer.application.value_normalization import normalize_value
 from kuchenland_importer.domain.cell_values import CellValue, ExcelErrorValue
@@ -14,20 +14,6 @@ from kuchenland_importer.domain.mail import SavedAttachment
 from kuchenland_importer.domain.product import ProductRecord
 from kuchenland_importer.domain.report import ImportIssue, Severity
 from kuchenland_importer.domain.workbook import SourceCell, SourceSheet, WorkbookPreview
-
-
-def article_value(cell: SourceCell) -> str:
-    value = cell.value
-    if isinstance(value, str):
-        if not value.strip():
-            raise ValueError("Пустой артикул.")
-        return value.strip()
-    if type(value) is int or isinstance(value, float) and value.is_integer():
-        pattern = cell.number_format
-        if re.fullmatch(r"0+", pattern):
-            return str(int(value)).zfill(len(pattern))
-        return str(int(value))
-    raise ValueError("Артикул должен быть текстом или целым числом.")
 
 
 def row_values(row: tuple[SourceCell, ...], header: TableHeader) -> dict[str, CellValue]:
@@ -46,12 +32,13 @@ class NormalizeWorkbook:
     def execute(
         self, attachment: SavedAttachment, sheets: tuple[SourceSheet, ...]
     ) -> WorkbookPreview:
-        issues: list[ImportIssue] = []
+        tables = classify_source_tables(sheets, self.registry)
+        issues: list[ImportIssue] = list(tables.issues)
         primary: list[tuple[SourceSheet, TableHeader]] = []
         photos: dict[str, dict[str, CellValue]] = {}
         for sheet in sheets:
             try:
-                header = find_header(sheet, self.registry)
+                header = tables.headers.get(sheet.name)
                 if header is None:
                     continue
                 if {"article", "supplier", "season"} <= set(header.columns):

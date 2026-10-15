@@ -3,8 +3,9 @@
 from dataclasses import dataclass, replace
 from typing import Protocol
 
-from kuchenland_importer.application.normalize_workbook import article_value
-from kuchenland_importer.application.table_schema import ColumnRegistry, find_header
+from kuchenland_importer.application.article_identity import article_value
+from kuchenland_importer.application.source_tables import classify_source_tables
+from kuchenland_importer.application.table_schema import ColumnRegistry
 from kuchenland_importer.domain.photos import EmbeddedPhoto, PhotoExtraction
 from kuchenland_importer.domain.product import PhotoAsset
 from kuchenland_importer.domain.report import ImportIssue, Severity
@@ -26,9 +27,10 @@ class BindPhotos:
         cells: dict[tuple[str, int, int], str] = {}
         columns: dict[str, int] = {}
         issues = list(preview.issues)
+        tables = classify_source_tables(sheets, self.registry)
         for sheet in sheets:
             try:
-                header = find_header(sheet, self.registry)
+                header = tables.headers.get(sheet.name)
                 if header is None or not {"article", "photo"} <= set(header.columns):
                     continue
                 column = header.columns.index("photo") + 1

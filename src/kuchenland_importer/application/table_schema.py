@@ -25,12 +25,17 @@ class TableHeader:
     columns: tuple[str, ...]
 
 
-def find_header(sheet: SourceSheet, registry: ColumnRegistry) -> TableHeader | None:
+def find_header(
+    sheet: SourceSheet, registry: ColumnRegistry, *,
+    required_fields: frozenset[str] = frozenset(),
+) -> TableHeader | None:
     for index, row in enumerate(sheet.rows[:50]):
         fields = [
             registry.resolve(str(cell.value)) if cell.value is not None else None for cell in row
         ]
         if "article" not in fields or sum(field is not None for field in fields) < 3:
+            continue
+        if not required_fields <= set(fields):
             continue
         depth = 1
         if index + 1 < len(sheet.rows):

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kuchenland-importer"
-version = "0.8.1"
+version = "0.8.2"
 description = "Windows procurement mail and Excel import tool"
 requires-python = ">=3.12,<3.13"
 dynamic = ["dependencies"]
