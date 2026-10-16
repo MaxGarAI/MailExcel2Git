@@ -73,7 +73,17 @@ def verify_master(
     extraction = PhotoReader().read(path, limits=MASTER_LIMITS)
     photos = {(p.sheet, p.row, p.column): p for p in extraction.pictures if p.native}
     store = PhotoStore(directory)
+    linked = {
+        (p.sheet, p.row, p.column, p.shape_name)
+        for p in extraction.problems if p.external_link
+    }
     for saved in written:
+        column = master.layouts[saved.photo_sheet].columns["photo"]
+        if any(
+            (saved.photo_sheet, saved.photo_row, column, name) not in linked
+            for name in saved.linked_photo_names
+        ):
+            raise ValueError(f"Прежняя внешняя ссылка на фото не сохранена: {saved.article}")
         if saved.photo_digest is None:
             continue
         column = master.layouts[saved.photo_sheet].columns["photo"]

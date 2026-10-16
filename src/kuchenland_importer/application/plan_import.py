@@ -87,6 +87,13 @@ def make_plan(
                             product.article,
                         )
                     )
+                if old.linked_photos:
+                    issues.append(ImportIssue(
+                        "MASTER_PHOTO_LINKED",
+                        "Прежнее фото — внешняя ссылка. При отсутствии нового встроенного фото "
+                        "ссылка будет сохранена; при наличии — заменена новым фото.",
+                        Severity.WARNING, product.article,
+                    ))
                 if old.photo_error:
                     issues.append(
                         ImportIssue(

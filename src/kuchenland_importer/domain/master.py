@@ -23,6 +23,12 @@ class ExistingRow:
     row: int
 
 
+@dataclass(frozen=True, slots=True)
+class LinkedPhotoReference:
+    sheet: str
+    shape_name: str
+
+
 @dataclass(slots=True)
 class ExistingProduct:
     rows: list[ExistingRow]
@@ -31,6 +37,7 @@ class ExistingProduct:
     received_at: datetime | None = None
     fingerprint: str | None = None
     received_day: date | None = None
+    linked_photos: tuple[LinkedPhotoReference, ...] = ()
 
 
 @dataclass(slots=True)

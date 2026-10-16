@@ -5,11 +5,11 @@ Windows-приложение для импорта товаров из выде�
 
 ## Скачать программу
 
-[Скачать ZIP для Windows x64](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.2/KuchenlandImporter-0.8.2-windows-x64.zip)
+[Скачать ZIP для Windows x64](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.3/KuchenlandImporter-0.8.3-windows-x64.zip)
 — распакуйте целиком и запустите `KuchenlandImporter.exe`.
 
-[Страница выпуска и контрольная сумма](https://github.com/MaxGarAI/MailExcel2Git/releases/tag/v0.8.2)
-· [Инструкция по запуску](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.2/RUNNING-WINDOWS.md).
+[Страница выпуска и контрольная сумма](https://github.com/MaxGarAI/MailExcel2Git/releases/tag/v0.8.3)
+· [Инструкция по запуску](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.3/RUNNING-WINDOWS.md).
 Python устанавливать не требуется; Excel и классический Outlook должны быть установлены.
 Выпуск предназначен для приёмки на целевом устройстве; первый импорт — на копии книги.
 
@@ -17,7 +17,7 @@ Python устанавливать не требуется; Excel и класси
 
 Реализованы этапы 1–8: получение писем, разбор Excel, сезоны, фотографии,
 транзакционная запись, интерфейс tkinter и комплект EXE для Windows x64.
-Версия 0.8.2. Запуск без установки Python — `KuchenlandImporter.exe` из распакованного
+Версия 0.8.3. Запуск без установки Python — `KuchenlandImporter.exe` из распакованного
 дистрибутива; папка `_internal` должна оставаться рядом. Порядок работы описан
 в [инструкции Windows](docs/windows-user-guide.md).
 
@@ -413,7 +413,7 @@ Windows x64, Python 3.12.8 x64, из корня проекта:
 .\.venv\Scripts\python.exe tools/build_windows.py
 ```
 
-Результат: `dist/KuchenlandImporter-0.8.2-windows-x64/`, ZIP с этой папкой,
+Результат: `dist/KuchenlandImporter-0.8.3-windows-x64/`, ZIP с этой папкой,
 SHA-256 архива и `release-manifest.json` с хешами файлов и исходных модулей.
 Сборщик отказывается перезаписывать существующий выпуск. Это воспроизводимая
 конфигурация сборки с закреплёнными зависимостями; побитовая идентичность EXE/ZIP
@@ -433,7 +433,7 @@ SHA-256 архива и `release-manifest.json` с хешами файлов и 
 Проверка собранного комплекта без Outlook и без путей Python в окружении EXE:
 
 ```powershell
-.\.venv\Scripts\python.exe tools/verify_windows_package.py dist/KuchenlandImporter-0.8.2-windows-x64 --source-root .
+.\.venv\Scripts\python.exe tools/verify_windows_package.py dist/KuchenlandImporter-0.8.3-windows-x64 --source-root .
 ```
 
 Проверяющий скрипт сравнивает хеши, запускает обе программы и настоящее окно Tk
@@ -479,3 +479,19 @@ SHA-256 архива и `release-manifest.json` с хешами файлов и 
 На двух предоставленных письмах проверены 23 товара и 23 фото, включая обновление
 и повтор без изменения книги. Сами письма и вложения не включаются в репозиторий.
 Полные файлы: `docs/fix-0.8.2-code.md`, проверки: `docs/fix-0.8.2-validation.md`.
+
+
+## Исправление 0.8.3: фото, сохранённое только внешней ссылкой
+
+Внешняя ссылка без встроенных байтов картинки больше не отклоняет всё вложение.
+Товар импортируется с предупреждением PHOTO_EXTERNAL_LINK, доступные встроенные фото
+переносятся как обычно. Прежнее фото сохраняется при отсутствии нового; старое фото,
+которое тоже является внешней ссылкой, сохраняется вместе с гиперссылкой и переносится
+на новый сезонный лист. Новое встроенное фото заменяет прежнюю ссылку.
+Самостоятельно скачивать картинки с внешних серверов программа не пытается.
+Без байтов картинки внешнюю ссылку нельзя преобразовать в нативное изображение в ячейке;
+она остаётся прежним привязанным объектом. Повреждённые встроенные фото и некорректные
+связи по-прежнему являются ошибками.
+
+Проверки и ограничения: `docs/fix-0.8.3-validation.md`.
+Полные новые и изменённые файлы: `docs/fix-0.8.3-code.md`.

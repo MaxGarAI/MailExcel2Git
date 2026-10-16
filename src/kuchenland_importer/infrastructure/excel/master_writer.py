@@ -13,6 +13,7 @@ from kuchenland_importer.domain.write_plan import WritePlan
 from kuchenland_importer.infrastructure.excel.calculation_settings import restore_calculation_mode
 from kuchenland_importer.infrastructure.excel.com_values import write_value
 from kuchenland_importer.infrastructure.excel.incell_writer import InCellPictureWriter
+from kuchenland_importer.infrastructure.excel.linked_photo_keeper import LinkedPhotoKeeper
 from kuchenland_importer.infrastructure.excel.master_filters import capture_filters, restore_filters
 from kuchenland_importer.infrastructure.excel.master_rows import (
     append_row,
@@ -34,6 +35,7 @@ class WrittenProduct:
     photo_row: int
     photo_digest: str | None
     photo_action: PhotoAction
+    linked_photo_names: tuple[str, ...] = ()
 
 
 def write_master(
@@ -45,6 +47,7 @@ def write_master(
     progress: Callable[[int, int], None] | None = None,
 ) -> tuple[WrittenProduct, ...]:
     written = []
+    linked = LinkedPhotoKeeper(path, plan)
     with owned_workbook(path) as book:
         service = capture_service(book, master)
         filters = capture_filters(book, master)
@@ -57,6 +60,9 @@ def write_master(
             rows = []
             old_photo = action.previous.photo if action.previous else None
             decision = photo_action(old_photo, item.product.photo)
+            if action.previous and action.previous.linked_photos:
+                decision = PhotoAction.REPLACE if item.product.photo else PhotoAction.KEEP
+            linked_names: tuple[str, ...] = ()
             asset = old_photo if decision == PhotoAction.KEEP else item.product.photo
             for name, is_photo in ((route.calculation_sheet, False), (route.photo_sheet, True)):
                 layout = master.layouts[name]
@@ -91,6 +97,9 @@ def write_master(
                     if cell.RowHeight < 60:
                         cell.RowHeight = 100
                     InCellPictureWriter().place(sheet, str(cell.Address), asset)
+                if is_photo:
+                    cell = sheet.Cells(row, layout.columns["photo"])
+                    linked_names = linked.restore(item.product.article, sheet, cell)
                 rows.append(row)
             written.append(
                 WrittenProduct(
@@ -101,6 +110,7 @@ def write_master(
                     rows[1],
                     asset.pixel_sha256 if asset else None,
                     decision,
+                    linked_names,
                 )
             )
             if len(written) % 10 == 0 or len(written) == len(plan.products):
@@ -111,5 +121,6 @@ def write_master(
         restore_filters(book, master, filters)
         save_state(book, master, plan)
         book.Save()
+    linked.finish(path)
     restore_calculation_mode(path, master.calculation_mode)
     return tuple(written)

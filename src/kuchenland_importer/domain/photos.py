@@ -35,6 +35,8 @@ class PhotoProblem:
     row: int | None
     column: int | None
     message: str
+    external_link: bool = False
+    shape_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -8,7 +8,12 @@ from openpyxl import load_workbook
 
 from kuchenland_importer.application.normalize_workbook import article_value
 from kuchenland_importer.application.table_schema import ColumnRegistry, find_header
-from kuchenland_importer.domain.master import ExistingProduct, ExistingRow, MasterSnapshot
+from kuchenland_importer.domain.master import (
+    ExistingProduct,
+    ExistingRow,
+    LinkedPhotoReference,
+    MasterSnapshot,
+)
 from kuchenland_importer.domain.photos import EmbeddedPhoto
 from kuchenland_importer.domain.season import SeasonRoute
 from kuchenland_importer.infrastructure.excel.master_layout import layout_for, master_registry
@@ -78,7 +83,11 @@ def read_snapshot(
                 and problem.row in {None, row}
                 and (problem.column in {None, column})
             ):
-                products[article].photo_error = problem.message
+                if problem.external_link and problem.shape_name:
+                    reference = LinkedPhotoReference(sheet_name, problem.shape_name)
+                    products[article].linked_photos += (reference,)
+                else:
+                    products[article].photo_error = problem.message
     store = PhotoStore(photo_directory)
     for article, pictures in grouped.items():
         try:

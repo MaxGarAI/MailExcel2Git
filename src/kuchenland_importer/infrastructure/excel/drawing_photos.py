@@ -45,8 +45,23 @@ def read_drawings(package: OOXMLPackage, sheet: str, part: str) -> PhotoExtracti
                         raise ValueError("Группированные картинки требуют отдельного профиля.")
                     continue
                 blip = pic.find(f"{{{D}}}blipFill/{{{A}}}blip")
+                if blip is not None and f"{{{R}}}embed" not in blip.attrib:
+                    link = blip.attrib.get(f"{{{R}}}link")
+                    properties = pic.find(f"{{{D}}}nvPicPr/{{{D}}}cNvPr")
+                    name = properties.attrib.get("name") if properties is not None else None
+                    if link in media and media[link] is None and name:
+                        problems.append(PhotoProblem(
+                            sheet, row, column,
+                            "Фото хранится только во внешней ссылке, без картинки внутри книги. "
+                            "Данные импортируются без загрузки фото из сети; "
+                            "прежнее фото сохраняется.",
+                            external_link=True, shape_name=name,
+                        ))
+                        continue
                 if blip is None or f"{{{R}}}embed" not in blip.attrib:
-                    raise ValueError("Связанная/отсутствующая картинка не загружается из сети.")
+                    raise ValueError(
+                        "Отсутствует встроенная картинка или корректная внешняя ссылка."
+                    )
                 target = media[blip.attrib[f"{{{R}}}embed"]]
                 if target is None:
                     raise ValueError("Внешнее изображение не поддерживается.")

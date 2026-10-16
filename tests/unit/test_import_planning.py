@@ -213,3 +213,20 @@ def test_article_case_and_leading_zeros_do_not_collapse():
         prepared(article="ab"),
     )
     assert len(SelectLatest().execute(batch).products) == 4
+
+
+def test_existing_external_photo_does_not_reject_valid_attachment():
+    from kuchenland_importer.domain.master import LinkedPhotoReference
+
+    snapshot = master()
+    snapshot.products["001-A"] = ExistingProduct(
+        [ExistingRow("Весна", 2), ExistingRow("ФОТО весна", 2)],
+        linked_photos=(LinkedPhotoReference("ФОТО весна", "Picture 1"),),
+    )
+    plan = make_plan((prepared(),), snapshot)
+    assert len(plan.products) == 1
+    assert any(i.code == "MASTER_PHOTO_LINKED" and i.severity == "warning" for i in plan.issues)
+    snapshot.products["001-A"].photo_error = "Damaged payload"
+    blocked = make_plan((prepared(),), snapshot)
+    assert not blocked.products
+    assert any(i.code == "MASTER_PHOTO_INVALID" for i in blocked.issues)

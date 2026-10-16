@@ -63,7 +63,8 @@ class BindPhotos:
                 or problem.column == columns[problem.sheet]
             ):
                 issues.append(ImportIssue(
-                    "PHOTO_READ_FAILED", problem.message, Severity.ERROR,
+                    "PHOTO_EXTERNAL_LINK" if problem.external_link else "PHOTO_READ_FAILED",
+                    problem.message, Severity.WARNING if problem.external_link else Severity.ERROR,
                     f"{problem.sheet}:{problem.row or '?'}",
                 ))
         for picture in extracted.pictures:
