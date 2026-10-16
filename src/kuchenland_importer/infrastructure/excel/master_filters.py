@@ -1,14 +1,23 @@
 """Extend existing AutoFilter ranges and reapply the user's supported criteria."""
 
+from pathlib import Path
 from typing import Any
 
+import pythoncom
+from win32com.client import VARIANT
+
 from kuchenland_importer.domain.master import MasterSnapshot
+from kuchenland_importer.infrastructure.excel.filter_metadata import read_top_filters
+
+# IDispatch optional argument, unlike VT_EMPTY or the InvokeTypes-only PyOleMissing.
+MISSING = VARIANT(pythoncom.VT_ERROR, -2147352572)  # DISP_E_PARAMNOTFOUND
 
 
 def capture_filters(
     book: Any, master: MasterSnapshot
 ) -> dict[str, tuple[int, int, int, list[dict[str, Any]]]]:
     result = {}
+    top_filters = None
     for name in master.layouts:
         sheet = book.Worksheets(name)
         if not sheet.AutoFilterMode:
@@ -26,6 +35,22 @@ def capture_filters(
                     criteria[key] = getattr(item, key)
                 except Exception:
                     continue  # Excel omits the unused side of a one-sided filter.
+            if criteria["Operator"] in {8, 9} and "Criteria1" in criteria:
+                # Excel returns Interior/Font objects, not the input RGB integer.
+                # Resolve Color while the original filter COM object is still valid.
+                color = criteria["Criteria1"]
+                criteria["Criteria1"] = int(color if isinstance(color, int) else color.Color)
+            if criteria["Operator"] in {3, 4, 5, 6}:
+                # COM reports the computed threshold (e.g. >=70), not the requested
+                # number/percentage (e.g. top 3). Recover the original saved parameter.
+                if top_filters is None:
+                    top_filters = read_top_filters(Path(str(book.FullName)))
+                saved = top_filters.get((name, field))
+                if saved is None or saved[0] != criteria["Operator"]:
+                    raise ValueError(f"Нет сохранённых параметров Top/Bottom фильтра {name}, "
+                                     f"поле {field}.")
+                criteria["Criteria1"] = saved[1]
+                criteria.pop("Criteria2", None)
             if not {"Criteria1", "Criteria2"} & criteria.keys():
                 raise ValueError(f"Невозможно сохранить критерий фильтра {name}, поле {field}.")
             filters.append(criteria)
@@ -55,4 +80,36 @@ def restore_filters(
         except Exception as error:
             raise ValueError(f"Не удалось восстановить фильтр {name}: {area.Address}") from error
         for condition in criteria:
-            area.AutoFilter(**condition)
+            apply_criteria(area, condition, sheet_name=name)
+
+
+def apply_criteria(area: Any, condition: dict[str, Any], *, sheet_name: str) -> None:
+    # Filter.Operator returns zero for one criterion. Zero is not a valid input
+    # XlAutoFilterOperator: omit it rather than replaying it or injecting xlAnd.
+    arguments = [
+        condition["Field"],
+        condition.get("Criteria1", MISSING),
+        condition.get("Operator") or MISSING,
+        condition.get("Criteria2", MISSING),
+    ]
+    while arguments and arguments[-1] is MISSING:
+        arguments.pop()
+    try:
+        dispatch_id = area._oleobj_.GetIDsOfNames("AutoFilter")
+        area._oleobj_.Invoke(dispatch_id, 0, 1, True, *arguments)
+    except Exception as error:
+        raise ValueError(
+            f"Не удалось восстановить критерий фильтра {sheet_name}: "
+            f"поле {condition['Field']}, диапазон {area.Address}"
+        ) from error
+
+
+def suspend_filters(book: Any, filters: dict[str, Any]) -> None:
+    """Expose filtered rows before End(xlUp), row replacement and picture insertion."""
+    for name in filters:
+        sheet = book.Worksheets(name)
+        if sheet.FilterMode:
+            try:
+                sheet.ShowAllData()
+            except Exception as error:
+                raise ValueError(f"Не удалось временно снять фильтрацию листа {name}.") from error

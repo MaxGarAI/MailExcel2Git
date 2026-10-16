@@ -5,11 +5,11 @@ Windows-приложение для импорта товаров из выде�
 
 ## Скачать программу
 
-[Скачать ZIP для Windows x64](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.3/KuchenlandImporter-0.8.3-windows-x64.zip)
+[Скачать ZIP для Windows x64](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.4/KuchenlandImporter-0.8.4-windows-x64.zip)
 — распакуйте целиком и запустите `KuchenlandImporter.exe`.
 
-[Страница выпуска и контрольная сумма](https://github.com/MaxGarAI/MailExcel2Git/releases/tag/v0.8.3)
-· [Инструкция по запуску](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.3/RUNNING-WINDOWS.md).
+[Страница выпуска и контрольная сумма](https://github.com/MaxGarAI/MailExcel2Git/releases/tag/v0.8.4)
+· [Инструкция по запуску](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.4/RUNNING-WINDOWS.md).
 Python устанавливать не требуется; Excel и классический Outlook должны быть установлены.
 Выпуск предназначен для приёмки на целевом устройстве; первый импорт — на копии книги.
 
@@ -17,7 +17,7 @@ Python устанавливать не требуется; Excel и класси
 
 Реализованы этапы 1–8: получение писем, разбор Excel, сезоны, фотографии,
 транзакционная запись, интерфейс tkinter и комплект EXE для Windows x64.
-Версия 0.8.3. Запуск без установки Python — `KuchenlandImporter.exe` из распакованного
+Версия 0.8.4. Запуск без установки Python — `KuchenlandImporter.exe` из распакованного
 дистрибутива; папка `_internal` должна оставаться рядом. Порядок работы описан
 в [инструкции Windows](docs/windows-user-guide.md).
 
@@ -413,7 +413,7 @@ Windows x64, Python 3.12.8 x64, из корня проекта:
 .\.venv\Scripts\python.exe tools/build_windows.py
 ```
 
-Результат: `dist/KuchenlandImporter-0.8.3-windows-x64/`, ZIP с этой папкой,
+Результат: `dist/KuchenlandImporter-0.8.4-windows-x64/`, ZIP с этой папкой,
 SHA-256 архива и `release-manifest.json` с хешами файлов и исходных модулей.
 Сборщик отказывается перезаписывать существующий выпуск. Это воспроизводимая
 конфигурация сборки с закреплёнными зависимостями; побитовая идентичность EXE/ZIP
@@ -433,7 +433,7 @@ SHA-256 архива и `release-manifest.json` с хешами файлов и 
 Проверка собранного комплекта без Outlook и без путей Python в окружении EXE:
 
 ```powershell
-.\.venv\Scripts\python.exe tools/verify_windows_package.py dist/KuchenlandImporter-0.8.3-windows-x64 --source-root .
+.\.venv\Scripts\python.exe tools/verify_windows_package.py dist/KuchenlandImporter-0.8.4-windows-x64 --source-root .
 ```
 
 Проверяющий скрипт сравнивает хеши, запускает обе программы и настоящее окно Tk
@@ -495,3 +495,26 @@ SHA-256 архива и `release-manifest.json` с хешами файлов и 
 
 Проверки и ограничения: `docs/fix-0.8.3-validation.md`.
 Полные новые и изменённые файлы: `docs/fix-0.8.3-code.md`.
+
+
+## Исправление 0.8.4: восстановление активных фильтров при импорте
+
+Устранена ошибка AutoFilter, отменявшая импорт при активном обычном фильтре.
+Excel возвращает Operator=0 для одного критерия, но не принимает этот ноль обратно
+как входной XlAutoFilterOperator. Неиспользуемые аргументы теперь действительно
+пропускаются через IDispatch; массивы значений и вторые критерии сохраняются.
+Фильтры по цвету захватываются как RGB, а не ссылки на объекты Excel.
+Для Top/Bottom исходное количество/процент читается из сохранённой OOXML-книги:
+COM возвращает вычисленный порог, который нельзя использовать как параметр Top Items.
+
+Проверка в настоящем Excel: `tools/verify_filters_excel.py`.
+Полные файлы: `docs/fix-0.8.4-code.md`; результаты: `docs/fix-0.8.4-validation.md`.
+
+Перед заменой строк фильтрация временно снимается: End(xlUp) при активном фильтре
+видит последнюю видимую строку и может выбрать неправильное место добавления.
+После записи критерии восстанавливаются. До принятия рабочей копии проверяется
+полный состав прежних артикулов и их расчётных/фото строк, а не только новые записи.
+
+Копирование формата новой строки использует Copy с явным Destination внутри Excel;
+пара Copy/PasteSpecial с системным буфером исключена. Транзитные значения очищаются,
+фото-столбец копируется по свойствам без переноса нативной картинки предыдущего товара.

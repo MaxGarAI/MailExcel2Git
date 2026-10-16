@@ -1,14 +1,17 @@
 """Reopen the saved package and verify both mirrors, typed errors and native photo pixels."""
 
+from collections import Counter
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
 from openpyxl import load_workbook
 
+from kuchenland_importer.application.article_identity import article_value
 from kuchenland_importer.application.target_fields import product_fields
 from kuchenland_importer.domain.cell_values import CellValue, ExcelErrorValue
 from kuchenland_importer.domain.master import MasterSnapshot
+from kuchenland_importer.domain.workbook import SourceCell
 from kuchenland_importer.domain.write_plan import WritePlan
 from kuchenland_importer.infrastructure.excel.master_writer import WrittenProduct
 from kuchenland_importer.infrastructure.excel.photo_reader import PhotoReader
@@ -46,6 +49,7 @@ def verify_master(
     written: tuple[WrittenProduct, ...],
     directory: Path,
 ) -> None:
+    verify_inventory(path, master, written)
     book = load_workbook(path, read_only=False, data_only=False)
     try:
         for action, saved in zip(plan.products, written, strict=True):
@@ -90,3 +94,38 @@ def verify_master(
         picture = photos.get((saved.photo_sheet, saved.photo_row, column))
         if picture is None or store.build((picture,)).pixel_sha256 != saved.photo_digest:
             raise ValueError(f"Нативное фото не прошло проверку: {saved.article}")
+
+
+def verify_inventory(
+    path: Path, master: MasterSnapshot, written: tuple[WrittenProduct, ...]
+) -> None:
+    """Verify every old article/mirror remains, except explicitly replaced product rows."""
+    replaced = {product.article for product in written}
+    expected = Counter(
+        (article, row.sheet)
+        for article, product in master.products.items() if article not in replaced
+        for row in product.rows
+    )
+    for saved in written:
+        expected.update(
+            ((saved.article, saved.calculation_sheet), (saved.article, saved.photo_sheet))
+        )
+    actual: Counter[tuple[str, str]] = Counter()
+    book = load_workbook(path, read_only=True, data_only=True)
+    try:
+        for name, layout in master.layouts.items():
+            column = layout.columns["article"]
+            for (cell,) in book[name].iter_rows(
+                min_row=layout.first_row, min_col=column, max_col=column
+            ):
+                if cell.value is not None and cell.value != "":
+                    actual[(article_value(SourceCell(cell.value)), name)] += 1
+    finally:
+        book.close()
+    if actual != expected:
+        missing = sum((expected - actual).values())
+        extra = sum((actual - expected).values())
+        raise ValueError(
+            f"Проверка сохранности артикулов не пройдена: отсутствует строк {missing}, "
+            f"лишних строк {extra}. Рабочая копия не будет принята."
+        )

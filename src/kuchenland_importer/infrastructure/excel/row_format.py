@@ -1,4 +1,4 @@
-"""Copy bounded cell formats without putting native in-cell pictures on the clipboard."""
+"""Format new empty rows with direct Excel copies, without using the OS clipboard."""
 
 from typing import Any
 
@@ -18,11 +18,20 @@ def copy_row_format(sheet: Any, source_row: int, target_row: int, layout: SheetL
             continue
         source = sheet.Range(sheet.Cells(source_row, first), sheet.Cells(source_row, last))
         target = sheet.Range(sheet.Cells(target_row, first), sheet.Cells(target_row, last))
-        source.Copy()
+        copy_objects = sheet.Application.CopyObjectsWithCells
         try:
-            target.PasteSpecial(Paste=-4122)
+            sheet.Application.CopyObjectsWithCells = False
+            # Destination avoids Copy/PasteSpecial's shared clipboard and timing.
+            # The caller provides a new empty row; discard transient copied values.
+            source.Copy(Destination=target)
+            target.ClearContents()
+        except Exception as error:
+            raise ValueError(
+                f"Не удалось перенести формат новой строки {sheet.Name}: "
+                f"{source.Address} → {target.Address}"
+            ) from error
         finally:
-            sheet.Application.CutCopyMode = False
+            sheet.Application.CopyObjectsWithCells = copy_objects
     if photo_column is not None:
         source = sheet.Cells(source_row, photo_column)
         target = sheet.Cells(target_row, photo_column)

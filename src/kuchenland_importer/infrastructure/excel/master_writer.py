@@ -14,7 +14,11 @@ from kuchenland_importer.infrastructure.excel.calculation_settings import restor
 from kuchenland_importer.infrastructure.excel.com_values import write_value
 from kuchenland_importer.infrastructure.excel.incell_writer import InCellPictureWriter
 from kuchenland_importer.infrastructure.excel.linked_photo_keeper import LinkedPhotoKeeper
-from kuchenland_importer.infrastructure.excel.master_filters import capture_filters, restore_filters
+from kuchenland_importer.infrastructure.excel.master_filters import (
+    capture_filters,
+    restore_filters,
+    suspend_filters,
+)
 from kuchenland_importer.infrastructure.excel.master_rows import (
     append_row,
     capture_rows,
@@ -51,6 +55,7 @@ def write_master(
     with owned_workbook(path) as book:
         service = capture_service(book, master)
         filters = capture_filters(book, master)
+        suspend_filters(book, filters)
         preserved = capture_rows(book, master, plan)
         delete_rows(book, master, plan)
         for action in plan.products:
