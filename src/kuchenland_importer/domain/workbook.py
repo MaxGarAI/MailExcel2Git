@@ -22,6 +22,15 @@ class SourceSheet:
 
 
 @dataclass(frozen=True, slots=True)
+class IgnoredProduct:
+    article: str | None
+    season: str
+    source_sheet: str
+    source_row: int
+
+
+@dataclass(frozen=True, slots=True)
 class WorkbookPreview:
     products: tuple[ProductRecord, ...]
     issues: tuple[ImportIssue, ...]
+    ignored: tuple[IgnoredProduct, ...] = ()

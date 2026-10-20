@@ -230,3 +230,29 @@ def test_existing_external_photo_does_not_reject_valid_attachment():
     blocked = make_plan((prepared(),), snapshot)
     assert not blocked.products
     assert any(i.code == "MASTER_PHOTO_INVALID" for i in blocked.issues)
+
+
+
+def excluded(item):
+    from kuchenland_importer.domain.workbook import IgnoredProduct
+
+    return replace(item, products=(), ignored=(IgnoredProduct(
+        item.products[0].product.article, "ВСЕСЕЗОННЫЙ", "Items", 2
+    ),))
+
+
+def test_newest_excluded_season_prevents_import_of_older_regular_season():
+    plan = make_plan((prepared(), excluded(prepared(day=2))), master())
+    assert not plan.products and plan.skipped == 1
+    assert not any(i.severity == "error" for i in plan.issues)
+
+
+def test_newer_regular_season_can_replace_older_excluded_row():
+    plan = make_plan((excluded(prepared()), prepared(day=2)), master())
+    assert len(plan.products) == 1 and plan.skipped == 0
+
+
+def test_same_timestamp_exclusion_and_inclusion_remains_a_conflict():
+    plan = make_plan((excluded(prepared()), prepared()), master())
+    assert not plan.products
+    assert any(i.code == "MAIL_TIME_CONFLICT" for i in plan.issues)

@@ -15,6 +15,17 @@ def normalize_alias(value: str) -> str:
     return re.sub(r"\s*-\s*", "-", " ".join(text.split()))
 
 
+
+def is_excluded_season(value: object) -> bool:
+    """The agreed all-season category is always outside procurement imports."""
+    if not isinstance(value, str):
+        return False
+    text = normalize_alias(value)
+    text = re.sub(r"^\((?:у|д)\)\s*", "", text)
+    text = re.sub(r"^\d+\.\s*", "", text)
+    return re.fullmatch(r"всесезонный(?:\s+[1-9]\d{3})?", text) is not None
+
+
 def validate_sheet_name(name: str) -> None:
     if (
         not name.strip()

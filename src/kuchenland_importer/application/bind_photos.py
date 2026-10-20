@@ -24,6 +24,7 @@ class BindPhotos:
     def execute(
         self, preview: WorkbookPreview, sheets: tuple[SourceSheet, ...], extracted: PhotoExtraction
     ) -> WorkbookPreview:
+        ignored = {p.article for p in preview.ignored if p.article is not None}
         cells: dict[tuple[str, int, int], str] = {}
         columns: dict[str, int] = {}
         issues = list(preview.issues)
@@ -58,6 +59,10 @@ class BindPhotos:
                 issues.append(ImportIssue("PHOTO_TABLE", str(error), Severity.ERROR, sheet.name))
         grouped: dict[str, list[EmbeddedPhoto]] = {}
         for problem in extracted.problems:
+            if problem.row is not None and problem.column is not None:
+                ignored_article = cells.get((problem.sheet, problem.row, problem.column))
+                if ignored_article is not None and ignored_article in ignored:
+                    continue
             if problem.sheet in columns and (
                 problem.column is None or (problem.sheet, problem.row, problem.column) in cells
                 or problem.column == columns[problem.sheet]
@@ -70,6 +75,8 @@ class BindPhotos:
         for picture in extracted.pictures:
             key = (picture.sheet, picture.row, picture.column)
             target_article = cells.get(key)
+            if target_article in ignored:
+                continue
             if target_article is None:
                 continue  # Shapes outside the photo column are not product images.
             if picture.end_row is not None and any(
@@ -100,4 +107,4 @@ class BindPhotos:
                 "PHOTO_WITHOUT_PRODUCT", "Изображение не связано с расчётной строкой.",
                 Severity.WARNING, f"photo:{article}",
             ))
-        return WorkbookPreview(tuple(products), tuple(issues))
+        return WorkbookPreview(tuple(products), tuple(issues), preview.ignored)

@@ -1,7 +1,7 @@
 """Serialize typed values explicitly, preserving Excel error types."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -57,6 +57,7 @@ def create_preview(
     }
     files = []
     product_count = error_count = 0
+    ignored_count = 0
     routes_assigned = eligible_products = skipped_attachments = 0
     photo_count = eligible_photos = 0
     for attachment in attachments:
@@ -133,11 +134,13 @@ def create_preview(
                     "mail_subject": attachment.mail.subject,
                     "received_at": attachment.mail.received_at.isoformat(),
                     "products": products,
+                    "ignored_products": [asdict(p) for p in preview.ignored],
                     "issues": issues,
                     "eligible_for_import": errors == 0,
                 }
             )
             product_count += len(products)
+            ignored_count += len(preview.ignored)
             photo_count += file_photos
             error_count += errors
         except Exception as error:
@@ -155,6 +158,7 @@ def create_preview(
             error_count += 1
     result["files"] = files
     result["product_count"] = product_count
+    result["ignored_product_count"] = ignored_count
     result["error_count"] = error_count
     if season_resolver is not None:
         result["routes_assigned"] = routes_assigned

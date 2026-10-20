@@ -13,7 +13,13 @@ from kuchenland_importer.domain.cell_values import CellValue, ExcelErrorValue
 from kuchenland_importer.domain.mail import SavedAttachment
 from kuchenland_importer.domain.product import ProductRecord
 from kuchenland_importer.domain.report import ImportIssue, Severity
-from kuchenland_importer.domain.workbook import SourceCell, SourceSheet, WorkbookPreview
+from kuchenland_importer.domain.season import is_excluded_season
+from kuchenland_importer.domain.workbook import (
+    IgnoredProduct,
+    SourceCell,
+    SourceSheet,
+    WorkbookPreview,
+)
 
 
 def row_values(row: tuple[SourceCell, ...], header: TableHeader) -> dict[str, CellValue]:
@@ -36,6 +42,30 @@ class NormalizeWorkbook:
         issues: list[ImportIssue] = list(tables.issues)
         primary: list[tuple[SourceSheet, TableHeader]] = []
         photos: dict[str, dict[str, CellValue]] = {}
+        ignored = []
+        ignored_cells = set()
+        ignored_articles = set()
+        for sheet in sheets:
+            header = tables.headers.get(sheet.name)
+            if header is None or not {"article", "supplier", "season"} <= set(header.columns):
+                continue
+            for number, row in enumerate(
+                sheet.rows[header.row + header.depth - 1 :], header.row + header.depth
+            ):
+                season = row[header.columns.index("season")].value
+                if not is_excluded_season(season):
+                    continue
+                try:
+                    article = article_value(row[header.columns.index("article")])
+                    ignored_articles.add(article)
+                except ValueError:
+                    article = None
+                ignored.append(IgnoredProduct(article, str(season), sheet.name, number))
+                ignored_cells.add((sheet.name, number))
+                issues.append(ImportIssue(
+                    "SEASON_EXCLUDED", "Всесезонный товар пропущен по постоянному правилу.",
+                    Severity.WARNING, f"{sheet.name}:{number}",
+                ))
         for sheet in sheets:
             try:
                 header = tables.headers.get(sheet.name)
@@ -49,17 +79,21 @@ class NormalizeWorkbook:
                         if sku.value is None or sku.value == "":
                             continue
                         article = article_value(sku)
+                        if article in ignored_articles:
+                            continue
                         if article in photos:
                             raise ValueError(f"Повтор артикула на фото-листах: {article}")
                         photos[article] = row_values(row, header)
             except ValueError as error:
                 issues.append(ImportIssue("SHEET_SCHEMA", str(error), Severity.ERROR, sheet.name))
         products = []
-        seen: set[str] = set()
+        seen: set[str] = set(ignored_articles)
         for sheet, header in primary:
             for row_number, row in enumerate(
                 sheet.rows[header.row + header.depth - 1 :], header.row + header.depth
             ):
+                if (sheet.name, row_number) in ignored_cells:
+                    continue
                 sku = row[header.columns.index("article")]
                 if sku.value is None or sku.value == "":
                     continue
@@ -118,4 +152,4 @@ class NormalizeWorkbook:
                     f"photo:{article}",
                 )
             )
-        return WorkbookPreview(tuple(products), tuple(issues))
+        return WorkbookPreview(tuple(products), tuple(issues), tuple(ignored))

@@ -25,7 +25,9 @@ class SelectLatest:
         issues = [issue for item in attachments for issue in item.issues]
         candidates: dict[str, list[PreparedAttachment]] = defaultdict(list)
         for item in attachments:
-            for article in item.articles:
+            for article in item.articles | frozenset(
+                p.article for p in item.ignored if p.article is not None
+            ):
                 candidates[article].append(item)
         winners = []
         unknown = [
@@ -36,6 +38,17 @@ class SelectLatest:
         for article, files in sorted(candidates.items()):
             newest = max(item.attachment.mail.received_at for item in files)
             final = [item for item in files if item.attachment.mail.received_at == newest]
+            excluded = [
+                item for item in final if any(p.article == article for p in item.ignored)
+            ]
+            if len(excluded) == len(final):
+                continue
+            if excluded:
+                issues.append(ImportIssue(
+                    "MAIL_TIME_CONFLICT", "В одно время товар и исключён, и допущен к импорту.",
+                    Severity.ERROR, article,
+                ))
+                continue
             if any(not item.eligible for item in final) or any(time >= newest for time in unknown):
                 issues.append(
                     ImportIssue(
@@ -58,4 +71,7 @@ class SelectLatest:
                 )
                 continue
             winners.append(products[0])
-        return SelectedBatch(tuple(winners), tuple(issues), len(candidates) - len(winners))
+        return SelectedBatch(
+            tuple(winners), tuple(issues), len(candidates) - len(winners)
+            + sum(p.article is None for item in attachments for p in item.ignored),
+        )

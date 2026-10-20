@@ -47,7 +47,10 @@ def prepare_batch(
             )
             routed = RouteWorkbook(resolver).execute(preview)
             result.append(
-                PreparedAttachment(attachment, routed.products, identities, routed.issues, complete)
+                PreparedAttachment(
+                    attachment, routed.products, identities, routed.issues, complete,
+                    preview.ignored,
+                )
             )
         except Exception as error:
             result.append(

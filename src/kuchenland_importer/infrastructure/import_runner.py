@@ -157,6 +157,7 @@ def run_import(
                 "sha256": p.attachment.sha256,
                 "eligible": p.eligible,
                 "articles": sorted(p.articles),
+                "ignored_products": [asdict(row) for row in p.ignored],
                 "issues": [asdict(issue) for issue in p.issues],
             }
             for p in plan.attachments

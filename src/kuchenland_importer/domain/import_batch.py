@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from kuchenland_importer.domain.mail import SavedAttachment
 from kuchenland_importer.domain.report import ImportIssue, Severity
 from kuchenland_importer.domain.season import RoutedProduct
+from kuchenland_importer.domain.workbook import IgnoredProduct
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +15,7 @@ class PreparedAttachment:
     articles: frozenset[str]
     issues: tuple[ImportIssue, ...]
     identity_complete: bool = True
+    ignored: tuple[IgnoredProduct, ...] = ()
 
     @property
     def eligible(self) -> bool:

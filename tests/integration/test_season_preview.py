@@ -13,7 +13,7 @@ CONFIG = Path(__file__).resolve().parents[2] / "config" / "default.toml"
 def test_cli_routes_each_row_and_skips_entire_invalid_attachment(tmp_path: Path) -> None:
     rows = [
         [("A", "Зима 2026", "10.12.2026"), ("B", "Осень 2027", "")],
-        [("C", "Весна", ""), ("D", "ВСЕСЕЗОННЫЙ", "")],
+        [("C", "Весна", ""), ("D", "НЕИЗВЕСТНЫЙ", "")],
         [("E", "Зима", "")],
     ]
     attachments = []
