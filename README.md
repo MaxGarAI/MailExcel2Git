@@ -5,11 +5,11 @@ Windows-приложение для импорта товаров из выде�
 
 ## Скачать программу
 
-[Скачать ZIP для Windows x64](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.5/KuchenlandImporter-0.8.5-windows-x64.zip)
+[Скачать ZIP для Windows x64](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.6/KuchenlandImporter-0.8.6-windows-x64.zip)
 — распакуйте целиком и запустите `KuchenlandImporter.exe`.
 
-[Страница выпуска и контрольная сумма](https://github.com/MaxGarAI/MailExcel2Git/releases/tag/v0.8.5)
-· [Инструкция по запуску](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.5/RUNNING-WINDOWS.md).
+[Страница выпуска и контрольная сумма](https://github.com/MaxGarAI/MailExcel2Git/releases/tag/v0.8.6)
+· [Инструкция по запуску](https://github.com/MaxGarAI/MailExcel2Git/releases/download/v0.8.6/RUNNING-WINDOWS.md).
 Python устанавливать не требуется; Excel и классический Outlook должны быть установлены.
 Выпуск предназначен для приёмки на целевом устройстве; первый импорт — на копии книги.
 
@@ -17,7 +17,7 @@ Python устанавливать не требуется; Excel и класси
 
 Реализованы этапы 1–8: получение писем, разбор Excel, сезоны, фотографии,
 транзакционная запись, интерфейс tkinter и комплект EXE для Windows x64.
-Версия 0.8.5. Запуск без установки Python — `KuchenlandImporter.exe` из распакованного
+Версия 0.8.6. Запуск без установки Python — `KuchenlandImporter.exe` из распакованного
 дистрибутива; папка `_internal` должна оставаться рядом. Порядок работы описан
 в [инструкции Windows](docs/windows-user-guide.md).
 
@@ -413,7 +413,7 @@ Windows x64, Python 3.12.8 x64, из корня проекта:
 .\.venv\Scripts\python.exe tools/build_windows.py
 ```
 
-Результат: `dist/KuchenlandImporter-0.8.5-windows-x64/`, ZIP с этой папкой,
+Результат: `dist/KuchenlandImporter-0.8.6-windows-x64/`, ZIP с этой папкой,
 SHA-256 архива и `release-manifest.json` с хешами файлов и исходных модулей.
 Сборщик отказывается перезаписывать существующий выпуск. Это воспроизводимая
 конфигурация сборки с закреплёнными зависимостями; побитовая идентичность EXE/ZIP
@@ -433,7 +433,7 @@ SHA-256 архива и `release-manifest.json` с хешами файлов и 
 Проверка собранного комплекта без Outlook и без путей Python в окружении EXE:
 
 ```powershell
-.\.venv\Scripts\python.exe tools/verify_windows_package.py dist/KuchenlandImporter-0.8.5-windows-x64 --source-root .
+.\.venv\Scripts\python.exe tools/verify_windows_package.py dist/KuchenlandImporter-0.8.6-windows-x64 --source-root .
 ```
 
 Проверяющий скрипт сравнивает хеши, запускает обе программы и настоящее окно Tk
@@ -532,3 +532,15 @@ COM возвращает вычисленный порог, который не�
 Правило действует независимо от добавленных пользователем сезонных маршрутов.
 
 Полные файлы: `docs/fix-0.8.5-code.md`; проверки: `docs/fix-0.8.5-validation.md`.
+
+
+## Исправление 0.8.6
+
+Невидимая копия картинки с нулевой высотой больше не отклоняет всё вложение.
+Такой объект пропускается с предупреждением `PHOTO_NON_RENDERING`, когда нулевая
+высота подтверждается геометрией. Видимые фотографии и коллажи сохраняются;
+обратные привязки и противоречащие размеры остаются ошибками.
+Правило постоянного пропуска ВСЕСЕЗОННОГО сохранено.
+
+[Результаты проверок](docs/fix-0.8.6-validation.md) ·
+[Полные тексты изменённых файлов](docs/fix-0.8.6-code.md).

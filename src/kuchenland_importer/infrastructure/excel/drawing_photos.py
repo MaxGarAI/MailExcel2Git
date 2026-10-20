@@ -69,6 +69,24 @@ def read_drawings(package: OOXMLPackage, sheet: str, part: str) -> PhotoExtracti
                 transform = pic.find(f"{{{D}}}spPr/{{{A}}}xfrm")
                 end = anchor.find(f"{{{D}}}to")
                 extent = anchor.find(f"{{{D}}}ext")
+                transform_extent = (
+                    transform.find(f"{{{A}}}ext") if transform is not None else None
+                )
+                zero_extent = (
+                    int(extent.attrib["cy"]) == 0 if extent is not None else
+                    transform_extent is not None and int(transform_extent.attrib["cy"]) == 0
+                )
+                zero_anchor = end is None or geometry.normalize(
+                    int(end.findtext(f"{{{D}}}row", "-1")) + 1,
+                    int(end.findtext(f"{{{D}}}rowOff", "0")),
+                ) == (row, row_offset)
+                if zero_extent and zero_anchor:
+                    problems.append(PhotoProblem(
+                        sheet, row, column,
+                        "Невидимый объект фото с нулевой высотой пропущен.",
+                        non_rendering=True,
+                    ))
+                    continue
                 if end is not None:
                     row, end_row = geometry.bounds(
                         row,

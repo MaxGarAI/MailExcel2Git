@@ -96,3 +96,44 @@ def test_one_cell_extent_uses_hidden_row_logical_height_and_offset_carry():
     )
     assert geometry.extent_bounds(2, 100, 1000000) == (2, 2)
     assert geometry.extent_bounds(2, 1270100, 1000000) == (3, 3)
+
+
+@pytest.mark.parametrize("end_offset", [100, 50])
+def test_zero_or_reversed_same_row_anchor_is_not_a_visible_picture(end_offset):
+    geometry = RowGeometry({}, 1270000)
+    with pytest.raises(ValueError):
+        geometry.bounds(2, 100, 2, end_offset)
+
+
+@pytest.mark.parametrize("height", [0, 1, -1])
+def test_two_cell_zero_height_requires_matching_transform_evidence(tmp_path, height):
+    from zipfile import ZipFile
+
+    from kuchenland_importer.infrastructure.excel.ooxml_package import A, D
+
+    image = tmp_path / "red.png"
+    Image.new("RGB", (32, 32), "red").save(image)
+    book = Workbook()
+    book.active.append(["SKU", "Photo"])
+    book.active.append(["A", None])
+    picture = DrawingImage(image)
+    picture.anchor = TwoCellAnchor(
+        _from=AnchorMarker(col=1, row=1), to=AnchorMarker(col=1, row=1)
+    )
+    book.active.add_image(picture)
+    path = tmp_path / "collapsed.xlsx"
+    book.save(path)
+    book.close()
+    with ZipFile(path) as archive:
+        parts = {name: archive.read(name) for name in archive.namelist()}
+    drawing = ET.fromstring(parts["xl/drawings/drawing1.xml"])
+    properties = drawing.find(f"{{{D}}}twoCellAnchor/{{{D}}}pic/{{{D}}}spPr")
+    transform = ET.SubElement(properties, f"{{{A}}}xfrm")
+    ET.SubElement(transform, f"{{{A}}}ext", cx="100000", cy=str(height))
+    parts["xl/drawings/drawing1.xml"] = ET.tostring(drawing)
+    with ZipFile(path, "w") as archive:
+        for name, payload in parts.items():
+            archive.writestr(name, payload)
+    extracted = PhotoReader().read(path)
+    assert not extracted.pictures and len(extracted.problems) == 1
+    assert extracted.problems[0].non_rendering == (height == 0)

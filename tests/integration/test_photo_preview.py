@@ -3,18 +3,23 @@ import json
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
+import pytest
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ExcelImage
 from PIL import Image
 
+from kuchenland_importer.infrastructure.excel.ooxml_package import D
 from kuchenland_importer.infrastructure.excel.photo_reader import PhotoReader
 from kuchenland_importer.presentation.cli import main
 
 CONFIG = Path(__file__).resolve().parents[2] / "config" / "default.toml"
 
 
-def test_cli_extracts_collage_and_keeps_inputs_unchanged(tmp_path: Path) -> None:
+@pytest.mark.parametrize("collapsed", [False, True])
+def test_cli_extracts_collage_and_keeps_inputs_unchanged(tmp_path: Path, collapsed: bool) -> None:
     book = Workbook()
     book.active.append(["SKU", "Supplier", "Season"])
     book.active.append(["A", "Vendor", "Весна 2027"])
@@ -27,6 +32,19 @@ def test_cli_extracts_collage_and_keeps_inputs_unchanged(tmp_path: Path) -> None
         sheet.add_image(ExcelImage(buffer), "B2")
     source = tmp_path / "input.xlsx"
     book.save(source)
+    if collapsed:
+        # Add a collapsed duplicate alongside the two visible pictures. Its bytes are
+        # valid; treating it as a third image would silently alter the collage.
+        with ZipFile(source) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        drawing = ET.fromstring(parts["xl/drawings/drawing1.xml"])
+        duplicate = ET.fromstring(ET.tostring(drawing[0]))
+        duplicate.find(f"{{{D}}}ext").set("cy", "0")
+        drawing.append(duplicate)
+        parts["xl/drawings/drawing1.xml"] = ET.tostring(drawing)
+        with ZipFile(source, "w") as archive:
+            for name, payload in parts.items():
+                archive.writestr(name, payload)
     before = source.read_bytes()
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({
@@ -43,6 +61,10 @@ def test_cli_extracts_collage_and_keeps_inputs_unchanged(tmp_path: Path) -> None
                  "--data-dir", str(runtime)]) == 0
     data = json.loads(next((runtime / "reports").glob("photo-preview-*.json")).read_text('utf-8'))
     assert data["stage"] == "photo_preview"
+    assert data["error_count"] == 0
+    warnings = [i for i in data["files"][0]["issues"] if i["code"] == "PHOTO_NON_RENDERING"]
+    assert len(warnings) == int(collapsed)
+    assert all(i["severity"] == "warning" for i in warnings)
     assert data["photo_count"] == 1 and data["eligible_photo_count"] == 1
     product = data["files"][0]["products"][0]
     asset = product["photo"]

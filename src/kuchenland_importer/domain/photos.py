@@ -37,6 +37,7 @@ class PhotoProblem:
     message: str
     external_link: bool = False
     shape_name: str | None = None
+    non_rendering: bool = False
 
 
 @dataclass(frozen=True, slots=True)

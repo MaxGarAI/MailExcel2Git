@@ -37,6 +37,8 @@ class RowGeometry:
     def bounds(self, row: int, offset: int, end_row: int, end_offset: int) -> tuple[int, int]:
         first, top = self.normalize(row, offset)
         last_marker, bottom = self.normalize(end_row, end_offset)
+        if (last_marker, bottom) <= (first, top):
+            raise ValueError("Конец фото расположен перед началом или высота равна нулю.")
         last = last_marker if bottom > 0 else last_marker - 1
         if last < first:
             raise ValueError("Конец фото расположен перед началом.")

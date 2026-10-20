@@ -77,6 +77,8 @@ def read_snapshot(
         else:
             grouped[photo_article].append(photo)
     for problem in extracted.problems:
+        if problem.non_rendering:
+            continue
         for (sheet_name, row, column), article in cells.items():
             if (
                 sheet_name == problem.sheet

@@ -1,4 +1,4 @@
-# Kuchenland Importer 0.8.5 — инструкция Windows
+# Kuchenland Importer 0.8.6 — инструкция Windows
 
 ## Установка и запуск
 
