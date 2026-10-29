@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from kuchenland_importer.domain.field_review import AddedColumn
 from kuchenland_importer.domain.import_batch import PreparedAttachment
 from kuchenland_importer.domain.master import ExistingProduct
 from kuchenland_importer.domain.report import ImportIssue
@@ -22,3 +23,4 @@ class WritePlan:
     unchanged: int
     skipped: int
     attachments: tuple[PreparedAttachment, ...] = ()
+    added_columns: tuple[AddedColumn, ...] = ()

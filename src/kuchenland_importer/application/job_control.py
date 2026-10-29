@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from threading import Event, Lock
 
 from kuchenland_importer.domain.errors import ApplicationError
+from kuchenland_importer.domain.field_review import FieldChoice, FieldDecision
 
 
 class JobCancelled(ApplicationError):
@@ -24,6 +25,7 @@ class JobControl:
 
     _lock: Lock = field(default_factory=Lock)
     _writing: bool = False
+    review_fields: Callable[[FieldChoice], FieldDecision] | None = None
 
     def request_cancel(self) -> bool:
         with self._lock:

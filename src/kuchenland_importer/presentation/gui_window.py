@@ -11,6 +11,7 @@ from kuchenland_importer.app import Application
 from kuchenland_importer.application.job_control import Progress
 from kuchenland_importer.infrastructure.settings import Settings
 from kuchenland_importer.infrastructure.settings_store import save_settings
+from kuchenland_importer.presentation.gui_field_review import ReviewRequest, show_review
 from kuchenland_importer.presentation.gui_jobs import GuiResult, import_job
 from kuchenland_importer.presentation.gui_report import ReportPanel
 from kuchenland_importer.presentation.gui_settings import SettingsDialog
@@ -73,6 +74,7 @@ class ImportWindow:
         options = ttk.Frame(body)
         options.pack(fill="x", pady=(10, 0))
         self._button(options, "Названия столбцов…", self.columns)
+        self._button(options, "Правила новых полей…", self.field_rules)
         self._button(options, "Восстановить книгу…", self.restore)
         self._button(options, "Снять аварийную блокировку…", self.recover_lock)
         root.after(100, self.poll)
@@ -113,6 +115,12 @@ class ImportWindow:
             ColumnsDialog(self.root, self.config)
         except (OSError, ValueError) as error:
             messagebox.showerror("Названия столбцов", str(error), parent=self.root)
+
+    def field_rules(self) -> None:
+        from kuchenland_importer.presentation.gui_field_rules import show_rules
+
+        if not self.worker.busy:
+            show_rules(self.root, self.app.settings.data_dir / "field-rules.json")
 
     def _prepare(self) -> bool:
         try:
@@ -162,6 +170,11 @@ class ImportWindow:
             if isinstance(event, Progress):
                 self.status.set(event.message)
                 self.cancel_button.configure(state="normal" if event.cancellable else "disabled")
+            elif isinstance(event, ReviewRequest):
+                if self.closing:
+                    event.response.put(None)
+                else:
+                    show_review(self.root, event)
             elif isinstance(event, Completed):
                 self._busy(False)
                 self.last_result = event.result

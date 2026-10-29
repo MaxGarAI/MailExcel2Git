@@ -53,6 +53,17 @@ def write_master(
     written = []
     linked = LinkedPhotoKeeper(path, plan)
     with owned_workbook(path) as book:
+        for column in plan.added_columns:
+            sheet = book.Worksheets(column.sheet)
+            if sheet.ProtectContents:
+                raise ValueError(f"Лист {column.sheet} защищён.")
+            layout = master.layouts[column.sheet]
+            cell = sheet.Cells(layout.header_row + layout.header_depth - 1, column.column)
+            if cell.MergeCells or cell.Value is not None:
+                raise ValueError("Место нового заголовка занято или объединено.")
+            cell.NumberFormat = "@"
+            cell.Value = column.label
+            sheet.Columns(column.column).ColumnWidth = 22
         service = capture_service(book, master)
         filters = capture_filters(book, master)
         suspend_filters(book, filters)

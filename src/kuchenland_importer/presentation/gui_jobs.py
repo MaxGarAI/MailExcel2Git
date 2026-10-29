@@ -50,5 +50,6 @@ def import_job(
         app.settings,
         preserve_manual=policy.preserve_manual_values,
         control=control,
+        field_review=control.review_fields,
     )
     return GuiResult(outcome, issues, manifest)

@@ -23,7 +23,8 @@ def field_key(key: str) -> str:
 def product_fields(item: RoutedProduct, photo: bool) -> dict[str, CellValue]:
     product = item.product
     assert item.assignment is not None
-    values = {field_key(k): v for k, v in product.values.items() if not k.startswith("photo:")}
+    values = {field_key(k): v for k, v in product.values.items()
+              if not k.startswith(("photo:", "review:"))}
     if photo:
         # Calculation-only columns belong on calculation tabs; do not duplicate their entire schema.
         values = {k: v for k, v in values.items() if not k.startswith("source:")}
@@ -41,4 +42,11 @@ def product_fields(item: RoutedProduct, photo: bool) -> dict[str, CellValue]:
             "mail_received": product.attachment.mail.received_at.astimezone(),
         }
     )
+    prefix = f"review:{int(photo)}:"
+    for key in product.values:
+        if key.startswith(prefix + "drop:"):
+            values.pop(key[len(prefix + "drop:"):], None)
+    for key, value in product.values.items():
+        if key.startswith(prefix + "set:"):
+            values[key[len(prefix + "set:"):]] = value
     return values

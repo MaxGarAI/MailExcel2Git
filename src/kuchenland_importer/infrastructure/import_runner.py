@@ -1,6 +1,6 @@
 """Orchestrate preparation, planning, Excel write, verification and atomic commit."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 from loguru import logger
@@ -8,7 +8,9 @@ from loguru import logger
 from kuchenland_importer.application.job_control import JobCancelled, JobControl, Progress
 from kuchenland_importer.application.plan_import import make_plan
 from kuchenland_importer.application.resolve_season import ResolveSeason
+from kuchenland_importer.application.review_fields import Review, review_fields
 from kuchenland_importer.domain.errors import ExcelInputError
+from kuchenland_importer.domain.field_review import AddedColumn, FieldDecision
 from kuchenland_importer.domain.photos import PhotoAction
 from kuchenland_importer.domain.report import ImportIssue, ImportReport, Severity
 from kuchenland_importer.infrastructure.excel.columns import load_columns
@@ -16,6 +18,7 @@ from kuchenland_importer.infrastructure.excel.com_values import ERROR_FORMULAS
 from kuchenland_importer.infrastructure.excel.master_snapshot import read_snapshot
 from kuchenland_importer.infrastructure.excel.master_writer import write_master
 from kuchenland_importer.infrastructure.excel.verify_master import verify_master
+from kuchenland_importer.infrastructure.field_rules import load_rules, save_rules
 from kuchenland_importer.infrastructure.file_transaction import WorkbookTransaction
 from kuchenland_importer.infrastructure.import_report import save_report
 from kuchenland_importer.infrastructure.prepare_batch import prepare_batch
@@ -37,6 +40,7 @@ def run_import(
     *,
     preserve_manual: bool = True,
     control: JobControl | None = None,
+    field_review: Review | None = None,
 ) -> ImportOutcome:
     if settings.workbook is None:
         raise ExcelInputError("Не указан путь общей книги.")
@@ -67,7 +71,21 @@ def run_import(
                 work / "previous",
             )
             phase = "проверка маршрутов и новых версий товаров"
+            additions: tuple[AddedColumn, ...] = ()
+            rule_path = settings.data_dir / "field-rules.json"
+            if field_review is not None or rule_path.exists():
+                rules = load_rules(rule_path)
+                reviewed = review_fields(batch, master, settings.workbook, rules,
+                                         field_review or (lambda choice: FieldDecision("skip")),
+                                         registry)
+                batch, additions = reviewed.batch, reviewed.columns
+                if field_review is not None:
+                    save_rules(rule_path, rules)
             plan = make_plan(batch, master, frozenset(ERROR_FORMULAS))
+            used = {name for p in plan.products if p.incoming.assignment is not None
+                    for name in (p.incoming.assignment.route.calculation_sheet,
+                                 p.incoming.assignment.route.photo_sheet)}
+            plan = replace(plan, added_columns=tuple(c for c in additions if c.sheet in used))
             if control:
                 control.checkpoint("Проверка маршрутов и выбор новых писем")
             if plan.products:
@@ -151,6 +169,7 @@ def run_import(
         "journal": str(transaction.journal),
         "report": asdict(report),
         "products": [asdict(p) for p in written],
+        "added_columns": [asdict(c) for c in plan.added_columns],
         "attachments": [
             {
                 "name": p.attachment.original_name,

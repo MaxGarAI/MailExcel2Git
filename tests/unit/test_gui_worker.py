@@ -89,3 +89,40 @@ def test_worker_delivers_actionable_errors_without_unexpected_details(error, exp
     event = finish(worker)[-1]
     assert isinstance(event, Failed) and expected in event.message
     assert "internal private data" not in event.message
+
+
+def test_field_review_request_keeps_worker_busy_and_accepts_answer():
+    from kuchenland_importer.domain.field_review import FieldChoice, FieldDecision
+    from kuchenland_importer.presentation.gui_field_review import ReviewRequest
+
+    worker = GuiWorker()
+    ready = Event()
+    def task(control):
+        ready.set()
+        assert control.review_fields is not None
+        decision = control.review_fields(FieldChoice("vendor", False, "extra", (), (), ()))
+        assert decision == FieldDecision("skip")
+        return result()
+    worker.start(task)
+    assert ready.wait(5)
+    event = worker.events.get(timeout=5)
+    assert isinstance(event, ReviewRequest)
+    assert worker.busy
+    event.response.put(FieldDecision("skip"))
+    assert isinstance(finish(worker)[-1], Completed)
+
+
+def test_cancel_worker_waiting_for_field_decision():
+    from kuchenland_importer.domain.field_review import FieldChoice
+    from kuchenland_importer.presentation.gui_field_review import ReviewRequest
+
+    worker = GuiWorker()
+    def task(control):
+        assert control.review_fields is not None
+        control.review_fields(FieldChoice("vendor", False, "extra", (), (), ()))
+        return result()
+    worker.start(task)
+    assert isinstance(worker.events.get(timeout=5), ReviewRequest)
+    worker.cancel()
+    event = finish(worker)[-1]
+    assert isinstance(event, Failed) and event.cancelled

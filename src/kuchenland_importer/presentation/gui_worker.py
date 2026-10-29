@@ -9,6 +9,8 @@ from loguru import logger
 
 from kuchenland_importer.application.job_control import JobCancelled, JobControl, Progress
 from kuchenland_importer.domain.errors import ApplicationError
+from kuchenland_importer.domain.field_review import FieldChoice, FieldDecision
+from kuchenland_importer.presentation.gui_field_review import ReviewRequest
 from kuchenland_importer.presentation.gui_jobs import GuiResult
 
 
@@ -23,7 +25,7 @@ class Failed:
     cancelled: bool = False
 
 
-type WorkerEvent = Progress | Completed | Failed
+type WorkerEvent = Progress | Completed | Failed | ReviewRequest
 
 
 class GuiWorker:
@@ -39,6 +41,7 @@ class GuiWorker:
             raise RuntimeError("Другой импорт ещё выполняется.")
         self.busy = self.cancellable = True
         self.control = JobControl(self.events.put)
+        self.control.review_fields = self._review
         self.thread = Thread(
             target=self._run, args=(task,), name="procurement-import", daemon=False
         )
@@ -58,6 +61,19 @@ class GuiWorker:
         else:
             self.events.put(Completed(result))
 
+    def _review(self, choice: FieldChoice) -> FieldDecision:
+        request = ReviewRequest(choice)
+        self.events.put(request)
+        while not self.control.cancelled.is_set():
+            try:
+                decision = request.response.get(timeout=0.2)
+            except Empty:
+                continue
+            if decision is None:
+                raise JobCancelled("Импорт отменён при согласовании полей.")
+            return decision
+        raise JobCancelled("Импорт отменён при согласовании полей.")
+
     def cancel(self) -> None:
         if self.busy and self.cancellable:
             self.control.request_cancel()
@@ -71,6 +87,6 @@ class GuiWorker:
                 return events
             if isinstance(event, Progress):
                 self.cancellable = event.cancellable
-            else:
+            elif not isinstance(event, ReviewRequest):
                 self.busy = self.cancellable = False
             events.append(event)

@@ -52,6 +52,12 @@ def verify_master(
     verify_inventory(path, master, written)
     book = load_workbook(path, read_only=False, data_only=False)
     try:
+        for added in plan.added_columns:
+            layout = master.layouts[added.sheet]
+            if book[added.sheet].cell(
+                layout.header_row + layout.header_depth - 1, added.column
+            ).value != added.label:
+                raise ValueError("Новый заголовок не прошёл проверку.")
         for action, saved in zip(plan.products, written, strict=True):
             for name, row, photo in (
                 (saved.calculation_sheet, saved.calculation_row, False),
